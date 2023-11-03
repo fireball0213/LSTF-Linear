@@ -1,8 +1,8 @@
 import numpy as np
 from numpy.lib.stride_tricks import sliding_window_view
 
-from src.models.base import MLForecastModel
-from src.utils.distance import euclidean
+from models.base import MLForecastModel
+from utils.distance import euclidean
 
 
 class TsfKNN(MLForecastModel):
