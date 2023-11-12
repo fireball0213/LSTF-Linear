@@ -1,6 +1,6 @@
 import numpy as np
 from numpy.lib.stride_tricks import sliding_window_view
-from src.utils.metrics import mse, mae, mape, smape, mase
+from utils.metrics import mse, mae, mape, smape, mase
 
 
 class MLTrainer:
@@ -38,7 +38,13 @@ class MLTrainer:
         fore = self.model.forecast(test_X, pred_len=pred_len)
         fore = self.transform.inverse_transform(fore)
         print('mse:', mse(fore, test_Y))
-        # print('mae:', mae(fore, test_Y))
-        # print('mape:', mape(fore, test_Y))
-        # print('smape:', smape(fore, test_Y))
-        # print('mase:', mase(fore, test_Y))
+        print('mae:', mae(fore, test_Y))
+        print('mape:', mape(fore, test_Y))
+        print('smape:', smape(fore, test_Y))
+        print('mase:', mase(fore, test_Y))
+        #画图对比预测结果
+        import matplotlib.pyplot as plt
+        plt.plot(fore[:,0],label='pred')
+        plt.plot(test_Y[:,0],label='true')
+        plt.legend()
+        plt.show()
