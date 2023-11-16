@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 from scipy.stats import boxcox
 from scipy.special import inv_boxcox
@@ -26,7 +27,7 @@ class IdentityTransform(Transform):
     def __init__(self, args):
         pass
 
-    def transform(self, data):
+    def transform(self, data,update=False):
         return data
 
     def inverse_transform(self, data):
@@ -41,10 +42,11 @@ class Normalization(Transform):
         self.min=0.
         pass
 
-    def transform(self, data):
-        self.mean=data.mean()
-        self.max=data.max()
-        self.min=data.min()
+    def transform(self, data,update=False):
+        if update:
+            self.mean=np.mean(data)
+            self.max=data.max()
+            self.min=data.min()
         #先检测数据的极差是否为0
         if self.max-self.min==0:
             return data-self.mean
@@ -67,9 +69,10 @@ class Standardization(Transform):
         self.std=1.
         pass
 
-    def transform(self, data):
-        self.mean=data.mean()
-        self.std=data.std()
+    def transform(self, data, update=False):
+        if update:
+            self.mean=data.mean()
+            self.std=data.std()
         #先检测数据的标准差是否为0
         if self.std==0:
             return data-self.mean
@@ -94,10 +97,11 @@ class MeanNormalization(Transform):
         self.min=0.
         pass
 
-    def transform(self, data):
-        self.mean=data.mean()
-        self.max=data.max()
-        self.min=data.min()
+    def transform(self, data, update=False):
+        if update:
+            self.mean=data.mean()
+            self.max=data.max()
+            self.min=data.min()
         #先检测数据的极差是否为0
         if self.max-self.min==0:
             return data-self.mean
@@ -119,11 +123,12 @@ class BoxCox(Transform):
         self.lam=0.
         pass
 
-    def transform(self, data):
+    def transform(self, data, update=False):
         #将数据转化为正数
         data=data-data.min()+1
+        if update:
         #计算BoxCox的lam
-        self.lam=boxcox(data)[1]
+            self.lam=boxcox(data)[1]
         #计算BoxCox
         norm_data=boxcox(data,self.lam)
         return norm_data

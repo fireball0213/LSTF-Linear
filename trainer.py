@@ -11,7 +11,7 @@ class MLTrainer:
 
     def train(self):
         train_X = self.dataset.train_data
-        t_X = self.transform.transform(train_X)
+        t_X = self.transform.transform(train_X,update=True)
         self.model.fit(t_X)
 
     def test(self, dataset, seq_len=96, pred_len=32):
@@ -35,8 +35,11 @@ class MLTrainer:
             subseries = np.concatenate(([sliding_window_view(v, seq_len + pred_len) for v in test_data]))
             test_X = subseries[:, :seq_len]
             test_Y = subseries[:, seq_len:]
+        print("evaluating...")
+        test_X = self.transform.transform(test_X)
         fore = self.model.forecast(test_X, pred_len=pred_len)
-        fore = self.transform.inverse_transform(fore)
+        test_Y = self.transform.transform(test_Y)
+        # fore = self.transform.inverse_transform(fore)
         print('mse:', mse(fore, test_Y))
         print('mae:', mae(fore, test_Y))
         print('mape:', mape(fore, test_Y))
@@ -44,7 +47,7 @@ class MLTrainer:
         print('mase:', mase(fore, test_Y))
         #画图对比预测结果
         import matplotlib.pyplot as plt
-        plt.plot(fore[:,0],label='pred')
-        plt.plot(test_Y[:,0],label='true')
+        plt.plot(fore[:,0][:3000],label='pred')
+        plt.plot(test_Y[:,0][:3000],label='true')
         plt.legend()
         plt.show()

@@ -5,7 +5,6 @@ def mse(predict, target):
     return np.mean((target - predict) ** 2)
 
 
-# TODO: implement the metrics
 def mae(predict, target):
     return np.mean(np.abs(target - predict))
 
