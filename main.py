@@ -4,7 +4,7 @@ from models.baselines import Autoregression,ExponentialMovingAverage,DoubleExpon
 from utils.transforms import IdentityTransform, Normalization, Standardization,MeanNormalization
 from trainer import MLTrainer
 from dataset.dataset import get_dataset
-from dataset.data_visualizer import data_visualize
+from dataset.data_visualizer import data_visualize,plot_forecast
 import argparse
 import random
 import numpy as np
@@ -29,9 +29,9 @@ def get_args():
     parser.add_argument('--dataset', type=str, default='Custom', help='dataset type, options: [M4, ETT, Custom]')
 
     parser.add_argument('--target', type=str, default='OT', help='target feature')
-    parser.add_argument('--ratio_train', type=int, default=0.7, help='train dataset length')
+    parser.add_argument('--ratio_train', type=int, default=0.6, help='train dataset length')
     parser.add_argument('--ratio_val', type=int, default=0, help='validate dataset length')
-    parser.add_argument('--ratio_test', type=int, default=0.3, help='input sequence length')
+    parser.add_argument('--ratio_test', type=int, default=0.4, help='input sequence length')
 
     # forcast task config
     parser.add_argument('--seq_len', type=int, default=96, help='input sequence length')
@@ -46,13 +46,14 @@ def get_args():
     parser.add_argument('--model', type=str, default='TsfKNN', help='model name')#, required=True
     parser.add_argument('--alpha', type=float, default=0.9, help='alpha used in ExponentialMovingAverage')
     parser.add_argument('--beta', type=float, default=0.2, help='beta used in DoubleExponentialSmoothing')
-    parser.add_argument('--n_neighbors', type=int, default=1, help='number of neighbors used in TsfKNN')
-    parser.add_argument('--distance', type=str, default='euclidean', help='distance used in TsfKNN')
+    parser.add_argument('--n_neighbors', type=int, default=5, help='number of neighbors used in TsfKNN')
+    # parser.add_argument('--distance', type=str, default='euclidean', help='distance used in TsfKNN')
     # parser.add_argument('--distance', type=str, default='manhattan', help='distance used in TsfKNN')
-    # parser.add_argument('--distance', type=str, default='chebyshev', help='distance used in TsfKNN')
+    parser.add_argument('--distance', type=str, default='chebyshev', help='distance used in TsfKNN')
     parser.add_argument('--decompose', type=bool, default=True, help='stl_modified distance used in TsfKNN')
     # parser.add_argument('--decompose', type=bool, default=False, help='stl_modified distance used in TsfKNN')
-    parser.add_argument('--seasonal', type=int, default=52, help='seasonal used in TsfKNN')
+    # parser.add_argument('--period', type=int, default=24, help='period used in TsfKNN,ETT:24,illness:52')
+    parser.add_argument('--period', type=int, default=52, help='period used in TsfKNN,ETT:24,illness:52')
     parser.add_argument('--msas', type=str, default='MIMO', help='multi-step ahead strategy used in TsfKNN, options: '
                                                                  '[MIMO, recursive]')
     # parser.add_argument('--msas', type=str, default='recursive', help='options: ''[MIMO, recursive]')
@@ -103,9 +104,9 @@ if __name__ == '__main__':
     # print(dataset.train_data.shape)
     # print(dataset.test_data.shape)
     # print(dataset.type)
-    # data_visualize(dataset, 1000)
+    data_visualize(dataset, 1000)
     # print(dataset.train_data[0])
-
+    # plt.plot([1, 2])
 
 
 
@@ -120,4 +121,6 @@ if __name__ == '__main__':
     trainer.train()
     print("train finished")
     # # evaluate model
-    trainer.evaluate(dataset, seq_len=args.seq_len, pred_len=args.pred_len)
+    fore,test_Y=trainer.evaluate(dataset, seq_len=args.seq_len, pred_len=args.pred_len)
+    # 画图对比预测结果
+    plot_forecast(fore, test_Y,500)

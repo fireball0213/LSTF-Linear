@@ -14,6 +14,7 @@ class MLTrainer:
         t_X = self.transform.transform(train_X,update=True)
         self.model.fit(t_X)
 
+
     def test(self, dataset, seq_len=96, pred_len=32):
         if dataset.type == 'm4':
             test_X = dataset.train_data
@@ -40,14 +41,12 @@ class MLTrainer:
         fore = self.model.forecast(test_X, pred_len=pred_len)
         test_Y = self.transform.transform(test_Y)
         # fore = self.transform.inverse_transform(fore)
+        # a=self.model.plot()
+        # plt.plot([1,2])
         print('mse:', mse(fore, test_Y))
         print('mae:', mae(fore, test_Y))
         print('mape:', mape(fore, test_Y))
         print('smape:', smape(fore, test_Y))
         print('mase:', mase(fore, test_Y))
-        #画图对比预测结果
-        import matplotlib.pyplot as plt
-        plt.plot(fore[:,0][:3000],label='pred')
-        plt.plot(test_Y[:,0][:3000],label='true')
-        plt.legend()
-        plt.show()
+
+        return fore, test_Y

@@ -20,4 +20,22 @@ def data_visualize(dataset, t):
 
     plt.show()
 
+def plot_forecast(fore, test_Y,t):
+    #画图对比预测结果，只画第一个通道的结果
+    #fore:预测结果，维度是(163,32)
+    #test_Y:真实值，维度是(163,32)
+    plt.plot(fore[:, 0][:t], label='forecast')
+    plt.plot(test_Y[:, 0][:t], label='true')
+    plt.legend()
+    plt.show()
+
+#画出STL分解后的几个分量图
+def plot_STL(stl,t):
+    plt.plot(stl.observed[:t],label='original')
+    plt.plot(stl.trend[:t],label='trend')
+    plt.plot(stl.seasonal[:t],label='seasonal')
+    plt.plot(stl.resid[:t],label='resid')
+    plt.title("STL decomposition of data")
+    plt.legend()
+    plt.show()
 
