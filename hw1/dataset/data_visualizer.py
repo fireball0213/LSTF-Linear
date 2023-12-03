@@ -18,7 +18,7 @@ def data_visualize(dataset, t):
     plt.title(dataset.type)
     plt.legend(dataset.data_cols)
 
-    # plt.show()
+    plt.show()
 
 def plot_forecast(fore, test_Y,t):
     #画图对比预测结果，只画第一个通道的结果
@@ -27,7 +27,7 @@ def plot_forecast(fore, test_Y,t):
     plt.plot(fore[:, 0][:t], label='forecast')
     plt.plot(test_Y[:, 0][:t], label='true')
     plt.legend()
-    # plt.show()
+    plt.show()
 
 #画出STL分解后的几个分量图
 def plot_STL(stl,t):
@@ -37,5 +37,5 @@ def plot_STL(stl,t):
     plt.plot(stl.resid[:t],label='resid')
     plt.title("STL decomposition of data")
     plt.legend()
-    # plt.show()
+    plt.show()
 

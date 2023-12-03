@@ -8,7 +8,7 @@ from dataset.data_visualizer import data_visualize,plot_forecast
 import argparse
 import random
 import numpy as np
-import matplotlib.pyplot as plt
+
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -32,7 +32,6 @@ def get_args():
     parser.add_argument('--ratio_train', type=int, default=0.6, help='train dataset length')
     parser.add_argument('--ratio_val', type=int, default=0, help='validate dataset length')
     parser.add_argument('--ratio_test', type=int, default=0.4, help='input sequence length')
-    parser.add_argument('--frequency', type=str, default='h', help='frequency of time series data, options: [h, m]')
 
     # forcast task config
     parser.add_argument('--seq_len', type=int, default=96, help='input sequence length')
@@ -109,9 +108,13 @@ if __name__ == '__main__':
     args = get_args()
     # load dataset
     dataset = get_dataset(args)
+    # print(dataset.train_data.shape)
+    # print(dataset.test_data.shape)
+    # print(dataset.type)
+    data_visualize(dataset, 100)
+    # print(dataset.train_data[0])
+    # plt.plot([1, 2])
 
-    data_visualize(dataset, 500)
-    plt.show()
 
 
     #create model
@@ -128,4 +131,3 @@ if __name__ == '__main__':
     fore,test_Y=trainer.evaluate(dataset, seq_len=args.seq_len, pred_len=args.pred_len)
     # 画图对比预测结果
     plot_forecast(fore, test_Y,500)
-    plt.show()

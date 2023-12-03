@@ -1,49 +1,43 @@
-# Modern Time Series Analysis
-
-MTSA (Modern Time Series Analysis) is a library dedicated to the field of time series forecasting. Our primary objective is to provide a comprehensive collection of both classical and deep learning-based algorithms for tackling time series forecasting tasks. 
-
-We will gradually enhance and expand our library as the TSA (Time Series Analysis) course progresses.
-
-[TSA home page](https://www.lamda.nju.edu.cn/yehj/TSA2023/)
-
-
-## Usage examples
+### 导入所需数据文件
 
 ```
-python main.py --data_path ./dataset/ETT/ETTh1.csv --dataset ETT --target OT --model MeanForecast
+./dataset/ETT/ETTh1.csv
+./dataset/illness/national_illness.csv
 ```
 
+
+
+### 依赖项安装
+
 ```
-python main.py --data_path ./dataset/ETT/ETTh1.csv --dataset ETT --target OT --model TsfKNN --n_neighbors 1 --msas MIMO --distance euclidean
+pip install -r requirements.txt
 ```
 
-## Datasets
-All datasets can be found [here](https://box.nju.edu.cn/d/b33a9f73813048b8b00f/).
-- [x] M4
-- [x] ETT
-- [ ] Traffic
-- [ ] Electricity
-- [ ] Exchange-Rate
-- [ ] Weather
-- [ ] ILI(illness)
 
-## Models
-- [x] ZeroForecast
-- [x] MeanForecast
-- [x] TsfKNN
-- [ ] LinearRegressionForecast
-- [ ] ExponentialSmoothingForecast
 
-## Transformations
-- [x] IdentityTransform
-- [ ] Normalization
-- [ ] Standardization
-- [ ] Mean Normalization
-- [ ] Box-Cox
+## 复现结果指令
 
-## Metrics
-- [x] MSE
-- [ ] MAE
-- [ ] MASE
-- [ ] MAPE
-- [ ] SMAPE
+ETT+自回归+标准化
+
+```
+python main.py --data_path ./dataset/ETT/ETTh1.csv --dataset ETT --target OT --model Autoregression --transform Standardization
+```
+
+illness+指数平滑+归一化+α=0.9
+
+```
+python main.py --data_path ./dataset/illness/national_illness.csv --dataset Custom --target OT --model ExponentialMovingAverage --transform Normalization --alpha 0.9
+```
+
+illness+DES+标准化+α=0.8+β=0.2
+
+```
+python main.py --data_path ./dataset/illness/national_illness.csv --dataset Custom --target OT --model DoubleExponentialSmoothing --transform Standardization --alpha 0.8 --beta 0.2
+```
+
+illness+TsfKNN+标准化+STL分解
+
+```
+python main.py --data_path ./dataset/illness/national_illness.csv --dataset Custom --target OT --model TsfKNN --n_neighbors 5 --msas MIMO --distance euclidean --decompose True
+```
+
