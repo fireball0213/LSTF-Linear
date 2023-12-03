@@ -44,14 +44,18 @@ def get_args():
     # parser.add_argument('--model', type=str, default='MeanForecast', help='model name')#, required=True
     # parser.add_argument('--model', type=str, default='LastValueForecast', help='model name')#, required=True
     # parser.add_argument('--model', type=str, default='Autoregression', help='model name')#, required=True
-    parser.add_argument('--model', type=str, default='ExponentialMovingAverage', help='model name')#, required=True
-    # parser.add_argument('--model', type=str, default='DoubleExponentialSmoothing', help='model name')#, required=True
+    # parser.add_argument('--model', type=str, default='ExponentialMovingAverage', help='model name')#, required=True
+    parser.add_argument('--model', type=str, default='DoubleExponentialSmoothing', help='model name')#, required=True
     # parser.add_argument('--model', type=str, default='TsfKNN', help='model name')#, required=True
 
-    # linear model define
+    # EMA define
     parser.add_argument('--alpha', type=float, default=0.9, help='alpha used in ExponentialMovingAverage')
-    parser.add_argument('--beta', type=float, default=0.05, help='beta used in DoubleExponentialSmoothing')
-    parser.add_argument('--MIMO', type=bool, default=True, help='Multiple Input Multiple Output used in LR')
+    parser.add_argument('--beta', type=float, default=0.2, help='beta used in DoubleExponentialSmoothing')
+
+    # multi-step ahead strategy used in LR and TsfKNN,多步直接预测or单步迭代预测
+    parser.add_argument('--msas', type=str, default='MIMO', help=' options: [MIMO, recursive]')
+    # parser.add_argument('--msas', type=str, default='recursive', help='options: [MIMO, recursive]')
+
 
     #TsfKNN define
     parser.add_argument('--n_neighbors', type=int, default=5, help='number of neighbors used in TsfKNN')
@@ -62,9 +66,6 @@ def get_args():
     # parser.add_argument('--decompose', type=bool, default=False, help='stl_modified distance used in TsfKNN')
     # parser.add_argument('--period', type=int, default=24, help='period used in TsfKNN,ETT:24,illness:52')
     parser.add_argument('--period', type=int, default=52, help='period used in TsfKNN,ETT:24,illness:52')
-    parser.add_argument('--msas', type=str, default='MIMO', help='multi-step ahead strategy used in TsfKNN, options: '
-                                                                 '[MIMO, recursive]')
-    # parser.add_argument('--msas', type=str, default='recursive', help='options: ''[MIMO, recursive]')
     parser.add_argument('--approximate_knn', type=bool, default=False, help='approximate_knn used in TsfKNN')
     # parser.add_argument('--approximate_knn', type=bool, default=True, help='approximate_knn used in TsfKNN')
 
