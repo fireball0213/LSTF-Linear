@@ -38,7 +38,7 @@ class LastValueForecast(MLForecastModel):
         a=X[:, -1].reshape(X.shape[0], 1)
         b=np.repeat(a, pred_len, axis=1)
         return np.repeat(X[:, -1].reshape(X.shape[0], 1), pred_len, axis=1)
-# TODO: add other models based on MLForecastModel
+
 
 #一个线性回归的类，实现target列的自回归预测
 class Autoregression(MLForecastModel):

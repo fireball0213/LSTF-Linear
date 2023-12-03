@@ -48,6 +48,7 @@ class M4Dataset(DatasetBase):
         self.val_data = None
 
 
+
 class ETTDataset(DatasetBase):
     def __init__(self, args):
         self.data_path = args.data_path

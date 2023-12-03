@@ -39,14 +39,14 @@ class MLTrainer:
         print("evaluating...")
         test_X = self.transform.transform(test_X)
         fore = self.model.forecast(test_X, pred_len=pred_len)
-        test_Y = self.transform.transform(test_Y)
-        # fore = self.transform.inverse_transform(fore)
-        # a=self.model.plot()
-        # plt.plot([1,2])
-        print('mse:', mse(fore, test_Y))
-        print('mae:', mae(fore, test_Y))
-        print('mape:', mape(fore, test_Y))
-        print('smape:', smape(fore, test_Y))
-        print('mase:', mase(fore, test_Y))
+        # test_Y = self.transform.transform(test_Y)
+        fore = self.transform.inverse_transform(fore)
+
+        #保留10位小数
+        print('mse:', mse(fore, test_Y).round(10))
+        print('mae:', mae(fore, test_Y).round(10))
+        print('mape:', mape(fore, test_Y).round(10))
+        print('smape:', smape(fore, test_Y).round(10))
+        print('mase:', mase(fore, test_Y).round(10))
 
         return fore, test_Y

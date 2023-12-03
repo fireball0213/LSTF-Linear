@@ -1,7 +1,7 @@
 from models.TsfKNN import TsfKNN
 from models.baselines import ZeroForecast, MeanForecast
 from models.baselines import Autoregression,ExponentialMovingAverage,DoubleExponentialSmoothing,LastValueForecast
-from utils.transforms import IdentityTransform, Normalization, Standardization,MeanNormalization
+from utils.transforms import IdentityTransform, Normalization, Standardization,MeanNormalization,BoxCox
 from trainer import MLTrainer
 from dataset.dataset import get_dataset
 from dataset.data_visualizer import data_visualize,plot_forecast
@@ -44,8 +44,11 @@ def get_args():
     # parser.add_argument('--model', type=str, default='ExponentialMovingAverage', help='model name')#, required=True
     # parser.add_argument('--model', type=str, default='DoubleExponentialSmoothing', help='model name')#, required=True
     parser.add_argument('--model', type=str, default='TsfKNN', help='model name')#, required=True
-    parser.add_argument('--alpha', type=float, default=0.9, help='alpha used in ExponentialMovingAverage')
-    parser.add_argument('--beta', type=float, default=0.2, help='beta used in DoubleExponentialSmoothing')
+
+    parser.add_argument('--alpha', type=float, default=0.7, help='alpha used in ExponentialMovingAverage')
+    parser.add_argument('--beta', type=float, default=0.05, help='beta used in DoubleExponentialSmoothing')
+
+    #TsfKNN define
     parser.add_argument('--n_neighbors', type=int, default=5, help='number of neighbors used in TsfKNN')
     # parser.add_argument('--distance', type=str, default='euclidean', help='distance used in TsfKNN')
     # parser.add_argument('--distance', type=str, default='manhattan', help='distance used in TsfKNN')
@@ -57,12 +60,15 @@ def get_args():
     parser.add_argument('--msas', type=str, default='MIMO', help='multi-step ahead strategy used in TsfKNN, options: '
                                                                  '[MIMO, recursive]')
     # parser.add_argument('--msas', type=str, default='recursive', help='options: ''[MIMO, recursive]')
+    parser.add_argument('--approximate_knn', type=bool, default=False, help='approximate_knn used in TsfKNN')
+    # parser.add_argument('--approximate_knn', type=bool, default=True, help='approximate_knn used in TsfKNN')
 
     # transform define
     # parser.add_argument('--transform', type=str, default='IdentityTransform')
     # parser.add_argument('--transform', type=str, default='Normalization')
     parser.add_argument('--transform', type=str, default='Standardization')
     # parser.add_argument('--transform', type=str, default='MeanNormalization')
+    # parser.add_argument('--transform', type=str, default='BoxCox')
 
 
     args = parser.parse_args()
@@ -88,6 +94,7 @@ def get_transform(args):
         'Normalization': Normalization,
         'Standardization': Standardization,
         'MeanNormalization':MeanNormalization,
+        'BoxCox':BoxCox,
 
     }
     return transform_dict[args.transform](args)
@@ -104,7 +111,7 @@ if __name__ == '__main__':
     # print(dataset.train_data.shape)
     # print(dataset.test_data.shape)
     # print(dataset.type)
-    data_visualize(dataset, 1000)
+    data_visualize(dataset, 100)
     # print(dataset.train_data[0])
     # plt.plot([1, 2])
 

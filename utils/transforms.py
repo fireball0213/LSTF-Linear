@@ -33,7 +33,7 @@ class IdentityTransform(Transform):
     def inverse_transform(self, data):
         return data
 
-# TODO: add other transforms
+
 #实现数据的归一化的类，即压缩到0，1之间
 class Normalization(Transform):
     def __init__(self, args):
@@ -118,24 +118,41 @@ class MeanNormalization(Transform):
         return inverse_data
 
 # 实现BoxCox的类，注意需要将数据转换为正数
+
 class BoxCox(Transform):
     def __init__(self, args):
-        self.lam=0.
+        self.lam = 0.
         pass
 
+    def _ensure_three_dimensions(self, data):
+        # Ensure data is three-dimensional
+        if data.ndim == 2:
+            data = data[np.newaxis, ...]  # Add a new dimension at the start
+        return data
+
     def transform(self, data, update=False):
-        #将数据转化为正数
-        data=data-data.min()+1
+        data = self._ensure_three_dimensions(data)
+        data = data - data.min(axis=1, keepdims=True) + 1
+        norm_data = np.empty_like(data)
+
         if update:
-        #计算BoxCox的lam
-            self.lam=boxcox(data)[1]
-        #计算BoxCox
-        norm_data=boxcox(data,self.lam)
-        return norm_data
+            self.lam = np.zeros(data.shape[-1])  # For storing lambda for each feature
+
+        for i in range(data.shape[-1]):
+            if update:
+                transformed, self.lam[i] = boxcox(data[0, :, i])
+                norm_data[0, :, i] = transformed
+            else:
+                norm_data[0, :, i] = boxcox(data[0, :, i], self.lam[i])
+
+        return np.squeeze(norm_data)  # Remove any singleton dimensions
 
     def inverse_transform(self, data):
-        #计算BoxCox的逆变换
-        inverse_data=inv_boxcox(data,self.lam)
-        #将数据转化为原始数据
-        inverse_data=inverse_data+data.min()-1
-        return inverse_data
+        data = self._ensure_three_dimensions(data)
+        inverse_data = np.empty_like(data)
+
+        for i in range(data.shape[-1]):
+            inverse_data[0, :, i] = inv_boxcox(data[0, :, i], self.lam[i])
+
+        inverse_data = inverse_data + data.min(axis=1, keepdims=True) - 1
+        return np.squeeze(inverse_data)  # Remove any singleton dimensions
