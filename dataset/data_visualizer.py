@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-
+import random
 def data_visualize(dataset, t):
     """
     Choose t continous time points in data and visualize the chosen points. Note that some datasets have more than one
@@ -29,6 +29,21 @@ def plot_forecast(fore, test_Y,t):
     plt.legend()
     # plt.show()
 
+def plot_all_forecast(fore, test_Y):
+
+    # lst=random.sample(range(0,fore.shape[0]),25)#在range(0,fore.shape[0])中随机选取9个数
+    index=random.sample(range(0,fore.shape[0]),1)[0]
+    lst=list(range(index,index+25))
+    print(lst)
+    #创建3*3的画布，画出9个子图，每个子图对比lst中的一个预测结果和真实值
+    fig, axes = plt.subplots(5, 5, figsize=(12, 12))
+    for i, ax in enumerate(axes.flat):
+        ax.plot(fore[lst[i],: ], label='forecast')
+        ax.plot(test_Y[lst[i],: ], label='true')
+        ax.legend()
+    plt.plot()
+    # plt.show()
+
 #画出STL分解后的几个分量图
 def plot_STL(stl,t):
     plt.plot(stl.observed[:t],label='original')
@@ -37,5 +52,5 @@ def plot_STL(stl,t):
     plt.plot(stl.resid[:t],label='resid')
     plt.title("STL decomposition of data")
     plt.legend()
-    # plt.show()
+    plt.show()
 
