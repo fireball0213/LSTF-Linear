@@ -4,7 +4,7 @@ from models.baselines import Autoregression,ExponentialMovingAverage,DoubleExpon
 from utils.transforms import IdentityTransform, Normalization, Standardization,MeanNormalization,BoxCox
 from trainer import MLTrainer
 from dataset.dataset import get_dataset
-from dataset.data_visualizer import data_visualize,plot_forecast
+from dataset.data_visualizer import data_visualize,plot_forecast,plot_all_forecast
 import argparse
 import random
 import numpy as np
@@ -15,6 +15,8 @@ def get_args():
 
     # dataset config
     # parser.add_argument('--data_path', type=str, default='./dataset/ETT/ETTh1.csv')
+    # parser.add_argument('--data_path', type=str, default='./dataset/ETT/ETTh2.csv')
+    # parser.add_argument('--data_path', type=str, default='./dataset/ETT/ETTm1.csv')
     # parser.add_argument('--data_path', type=str, default='./dataset/electricity/electricity.csv')
     # parser.add_argument('--data_path', type=str, default='./dataset/exchange_rate/exchange_rate.csv')
     parser.add_argument('--data_path', type=str, default='./dataset/illness/national_illness.csv')
@@ -41,13 +43,15 @@ def get_args():
     # model define
     # parser.add_argument('--model', type=str, default='MeanForecast', help='model name')#, required=True
     # parser.add_argument('--model', type=str, default='LastValueForecast', help='model name')#, required=True
-    parser.add_argument('--model', type=str, default='Autoregression', help='model name')#, required=True
-    # parser.add_argument('--model', type=str, default='ExponentialMovingAverage', help='model name')#, required=True
+    # parser.add_argument('--model', type=str, default='Autoregression', help='model name')#, required=True
+    parser.add_argument('--model', type=str, default='ExponentialMovingAverage', help='model name')#, required=True
     # parser.add_argument('--model', type=str, default='DoubleExponentialSmoothing', help='model name')#, required=True
     # parser.add_argument('--model', type=str, default='TsfKNN', help='model name')#, required=True
 
-    parser.add_argument('--alpha', type=float, default=0.7, help='alpha used in ExponentialMovingAverage')
+    # linear model define
+    parser.add_argument('--alpha', type=float, default=0.9, help='alpha used in ExponentialMovingAverage')
     parser.add_argument('--beta', type=float, default=0.05, help='beta used in DoubleExponentialSmoothing')
+    parser.add_argument('--MIMO', type=bool, default=True, help='Multiple Input Multiple Output used in LR')
 
     #TsfKNN define
     parser.add_argument('--n_neighbors', type=int, default=5, help='number of neighbors used in TsfKNN')
@@ -65,9 +69,9 @@ def get_args():
     # parser.add_argument('--approximate_knn', type=bool, default=True, help='approximate_knn used in TsfKNN')
 
     # transform define
-    # parser.add_argument('--transform', type=str, default='IdentityTransform')
+    parser.add_argument('--transform', type=str, default='IdentityTransform')
     # parser.add_argument('--transform', type=str, default='Normalization')
-    parser.add_argument('--transform', type=str, default='Standardization')
+    # parser.add_argument('--transform', type=str, default='Standardization')
     # parser.add_argument('--transform', type=str, default='MeanNormalization')
     # parser.add_argument('--transform', type=str, default='BoxCox')
 
@@ -128,4 +132,5 @@ if __name__ == '__main__':
     fore,test_Y=trainer.evaluate(dataset, seq_len=args.seq_len, pred_len=args.pred_len)
     # 画图对比预测结果
     plot_forecast(fore, test_Y,500)
+    plot_all_forecast(fore, test_Y)
     plt.show()

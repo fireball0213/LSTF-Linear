@@ -43,10 +43,10 @@ class MLTrainer:
         fore = self.transform.inverse_transform(fore)
 
         #保留10位小数
-        print('mse:', mse(fore, test_Y).round(10))
-        print('mae:', mae(fore, test_Y).round(10))
-        print('mape:', mape(fore, test_Y).round(10))
-        print('smape:', smape(fore, test_Y).round(10))
-        print('mase:', mase(fore, test_Y).round(10))
+        print('mse:', mse(fore, test_Y).round(5))
+        print('mae:', mae(fore, test_Y).round(5))
+        print('mape:', mape(fore, test_Y).round(5))
+        print('smape:', smape(fore, test_Y).round(5))
+        print('mase:', mase(fore, test_Y).round(5))
 
         return fore, test_Y
