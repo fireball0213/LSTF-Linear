@@ -14,12 +14,12 @@ def get_args():
     parser = argparse.ArgumentParser()
 
     # dataset config
-    # parser.add_argument('--data_path', type=str, default='./dataset/ETT/ETTh1.csv')
+    parser.add_argument('--data_path', type=str, default='./dataset/ETT/ETTh1.csv')
     # parser.add_argument('--data_path', type=str, default='./dataset/ETT/ETTh2.csv')
     # parser.add_argument('--data_path', type=str, default='./dataset/ETT/ETTm1.csv')
     # parser.add_argument('--data_path', type=str, default='./dataset/electricity/electricity.csv')
     # parser.add_argument('--data_path', type=str, default='./dataset/exchange_rate/exchange_rate.csv')
-    parser.add_argument('--data_path', type=str, default='./dataset/illness/national_illness.csv')
+    # parser.add_argument('--data_path', type=str, default='./dataset/illness/national_illness.csv')
     # parser.add_argument('--data_path', type=str, default='./dataset/traffic/traffic.csv')
     # parser.add_argument('--data_path', type=str, default='./dataset/weather/weather.csv')
 
@@ -27,8 +27,8 @@ def get_args():
     parser.add_argument('--test_data_path', type=str, default='./dataset/m4/Daily-test.csv')
 
     # parser.add_argument('--dataset', type=str, default='M4', help='dataset type, options: [M4, ETT, Custom]')
-    # parser.add_argument('--dataset', type=str, default='ETT', help='dataset type, options: [M4, ETT, Custom]')
-    parser.add_argument('--dataset', type=str, default='Custom', help='dataset type, options: [M4, ETT, Custom]')
+    parser.add_argument('--dataset', type=str, default='ETT', help='dataset type, options: [M4, ETT, Custom]')
+    # parser.add_argument('--dataset', type=str, default='Custom', help='dataset type, options: [M4, ETT, Custom]')
 
     parser.add_argument('--target', type=str, default='OT', help='target feature')
     parser.add_argument('--ratio_train', type=int, default=0.6, help='train dataset length')
@@ -43,9 +43,9 @@ def get_args():
     # model define
     # parser.add_argument('--model', type=str, default='MeanForecast', help='model name')#, required=True
     # parser.add_argument('--model', type=str, default='LastValueForecast', help='model name')#, required=True
-    # parser.add_argument('--model', type=str, default='Autoregression', help='model name')#, required=True
+    parser.add_argument('--model', type=str, default='Autoregression', help='model name')#, required=True
     # parser.add_argument('--model', type=str, default='ExponentialMovingAverage', help='model name')#, required=True
-    parser.add_argument('--model', type=str, default='DoubleExponentialSmoothing', help='model name')#, required=True
+    # parser.add_argument('--model', type=str, default='DoubleExponentialSmoothing', help='model name')#, required=True
     # parser.add_argument('--model', type=str, default='TsfKNN', help='model name')#, required=True
 
     # EMA define
@@ -70,11 +70,11 @@ def get_args():
     # parser.add_argument('--approximate_knn', type=bool, default=True, help='approximate_knn used in TsfKNN')
 
     # transform define
-    parser.add_argument('--transform', type=str, default='IdentityTransform')
+    # parser.add_argument('--transform', type=str, default='IdentityTransform')
     # parser.add_argument('--transform', type=str, default='Normalization')
     # parser.add_argument('--transform', type=str, default='Standardization')
     # parser.add_argument('--transform', type=str, default='MeanNormalization')
-    # parser.add_argument('--transform', type=str, default='BoxCox')
+    parser.add_argument('--transform', type=str, default='BoxCox')
 
 
     args = parser.parse_args()
