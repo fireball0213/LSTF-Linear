@@ -23,6 +23,7 @@ class TsfKNN(MLForecastModel):
         elif args.distance == 'chebyshev':
             self.distance = chebyshev
         self.decompose = args.decompose#是否考虑趋势和季节性
+        self.trend=args.trend
         self.msas = args.msas
         self.period = args.period#季节性的值
         self.approximate_knn= args.approximate_knn#是否使用近似knn
@@ -41,14 +42,22 @@ class TsfKNN(MLForecastModel):
         if self.decompose:
             self.X_stl = STL(self.X, period=self.period).fit()  # 对整个序列进行STL分解
             # plot_STL(self.X_stl,2000)
+
             subseries = sliding_window_view(self.X_stl.trend, self.seq_len + self.pred_len)
             self.trend_model = LinearRegression()
-            trend_X = subseries[:, :self.seq_len]
-            trend_y = subseries[:, self.seq_len:]
-            self.trend_model.fit(trend_X, trend_y)
+            if self.trend == 'AR':
+                trend_X = subseries[:, :self.seq_len]
+                trend_y = subseries[:, self.seq_len:]
+                self.trend_model.fit(trend_X, trend_y)
+            elif self.trend == 'plain':
+                pass
+                # trend_X = np.tile(np.arange(self.seq_len), (subseries.shape[0], 1))#横向复制subseries.shape[0]次
+                # trend_y = subseries[:, self.seq_len:]
+                # self.trend_model.fit(trend_X, trend_y)
         if self.approximate_knn:
             for i, d in enumerate(self.X_s):
-                point = np.array([d[:self.seq_len]]) if d.ndim == 0 else d[:self.seq_len]
+                # point = np.array([d[:self.seq_len]]) if d.ndim == 0 else d[:self.seq_len]
+                point=d[:self.seq_len]
                 self.lsh_model.index(point, extra_data=i)
 
 
@@ -62,12 +71,17 @@ class TsfKNN(MLForecastModel):
     def _stl_modified_distance(self, x_component, y_components_series):
         # x_component 是单个时间序列的 STL 分解结果（趋势或季节性组件）
         # y_components_series 是原数据滑动窗口的 STL 分解结果（趋势或季节性组件）
-        distances = []
-        for y_component in y_components_series:
-            # 计算 x_component 与 y_component 之间的距离
-            dist = self.distance(x_component, y_component)
-            distances.append(dist)
-        return np.array(distances)
+
+        # distances = []
+        # for y_component in y_components_series:
+        #     # 计算 x_component 与 y_component 之间的距离
+        #     dist = self.distance(x_component, y_component)
+        #     distances.append(dist)
+        # return np.array(distances)
+
+        # 优化后的代码，快了3倍，但需要distance函数支持向量化
+        distances = self.distance(x_component, y_components_series)
+        return distances
 
 
 
@@ -123,18 +137,22 @@ class TsfKNN(MLForecastModel):
     def _forecast(self, X: np.ndarray, pred_len) -> np.ndarray:
         fore = []
         seq_len = X.shape[1]
-
+        if self.decompose:
+            # X_s_trend = sliding_window_view(self.X_stl.trend, seq_len + pred_len)
+            X_s_seasonal = sliding_window_view(self.X_stl.seasonal, seq_len + pred_len)
+            X_s_resid = sliding_window_view(self.X_stl.resid, seq_len + pred_len)
         #显示进度
         for x in tqdm(X):
             x = np.expand_dims(x, axis=0)
             x_stl = STL(x[0], period=self.period).fit()
             # 传入STL分解后的序列进行搜索
             if self.decompose:
-                # X_s_trend = sliding_window_view(self.X_stl.trend, seq_len + pred_len)
-                X_s_seasonal = sliding_window_view(self.X_stl.seasonal, seq_len + pred_len)
-                X_s_resid = sliding_window_view(self.X_stl.resid, seq_len + pred_len)
                 x_fore = self.STL_search(x_stl.seasonal,x_stl.resid,  X_s_seasonal,X_s_resid, seq_len, pred_len)
-                x_stl_trend=self.trend_model.predict(x_stl.trend.reshape((1,-1))[:,-seq_len:])
+                if self.trend == 'AR':
+                    x_stl_trend=self.trend_model.predict(x_stl.trend.reshape((1,-1))[:,-seq_len:])
+                elif self.trend == 'plain':
+                    self.trend_model.fit(np.arange(seq_len).reshape((-1, 1)), x_stl.trend.reshape((-1, 1))[:, -seq_len:])
+                    x_stl_trend = self.trend_model.predict(np.arange(seq_len, pred_len + seq_len).reshape((-1, 1)))
                 x_fore+=x_stl_trend.ravel()
             else:
                 x_fore = self._search(x, self.X_s, seq_len, pred_len)

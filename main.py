@@ -17,21 +17,21 @@ def get_args():
     parser.add_argument('--train_data_path', type=str, default='./dataset/m4/Daily-train.csv')
     parser.add_argument('--test_data_path', type=str, default='./dataset/m4/Daily-test.csv')
 
-    # parser.add_argument('--data_path', type=str, default='./dataset/ETT/ETTh1.csv')
+    parser.add_argument('--data_path', type=str, default='./dataset/ETT/ETTh1.csv')
     # parser.add_argument('--data_path', type=str, default='./dataset/ETT/ETTh2.csv')
     # parser.add_argument('--data_path', type=str, default='./dataset/ETT/ETTm1.csv')
-    parser.add_argument('--data_path', type=str, default='./dataset/illness/national_illness.csv')
+    # parser.add_argument('--data_path', type=str, default='./dataset/illness/national_illness.csv')
     # parser.add_argument('--data_path', type=str, default='./dataset/electricity/electricity.csv')
     # parser.add_argument('--data_path', type=str, default='./dataset/exchange_rate/exchange_rate.csv')
     # parser.add_argument('--data_path', type=str, default='./dataset/traffic/traffic.csv')
     # parser.add_argument('--data_path', type=str, default='./dataset/weather/weather.csv')
 
-    # parser.add_argument('--period', type=int, default=24, help='period used in TsfKNN and MASE,ETT:24,illness:52')
-    parser.add_argument('--period', type=int, default=52, help='period used in TsfKNN and MASE,ETT:24,illness:52')
+    parser.add_argument('--period', type=int, default=24, help='period used in TsfKNN and MASE,ETT:24,illness:52')
+    # parser.add_argument('--period', type=int, default=52, help='period used in TsfKNN and MASE,ETT:24,illness:52')
 
     # parser.add_argument('--dataset', type=str, default='M4', help='dataset type, options: [M4, ETT, Custom]')
-    # parser.add_argument('--dataset', type=str, default='ETT', help='dataset type, options: [M4, ETT, Custom]')
-    parser.add_argument('--dataset', type=str, default='Custom', help='dataset type, options: [M4, ETT, Custom]')
+    parser.add_argument('--dataset', type=str, default='ETT', help='dataset type, options: [M4, ETT, Custom]')
+    # parser.add_argument('--dataset', type=str, default='Custom', help='dataset type, options: [M4, ETT, Custom]')
 
     parser.add_argument('--target', type=str, default='OT', help='target feature')
     parser.add_argument('--ratio_train', type=int, default=0.6, help='train dataset length')
@@ -61,13 +61,14 @@ def get_args():
     # parser.add_argument('--msas', type=str, default='recursive', help='options: [MIMO, recursive]')
 
     #TsfKNN define
-    parser.add_argument('--n_neighbors', type=int, default=9, help='number of neighbors used in TsfKNN')
-    # parser.add_argument('--distance', type=str, default='euclidean', help='distance used in TsfKNN')
+    parser.add_argument('--n_neighbors', type=int, default=5, help='number of neighbors used in TsfKNN')
+    parser.add_argument('--distance', type=str, default='euclidean', help='distance used in TsfKNN')
     # parser.add_argument('--distance', type=str, default='manhattan', help='distance used in TsfKNN')
-    parser.add_argument('--distance', type=str, default='chebyshev', help='distance used in TsfKNN')
+    # parser.add_argument('--distance', type=str, default='chebyshev', help='distance used in TsfKNN')
     parser.add_argument('--decompose', type=bool, default=True, help='stl_modified distance used in TsfKNN')
     # parser.add_argument('--decompose', type=bool, default=False, help='stl_modified distance used in TsfKNN')
-
+    parser.add_argument('--trend', type=str, default='plain', help='options: [plain, AR]')#trend predict method distance used in stl_modified
+    # parser.add_argument('--trend', type=str, default='AR', help='options: [plain, AR]')
     parser.add_argument('--approximate_knn', type=bool, default=False, help='approximate_knn used in TsfKNN')
     # parser.add_argument('--approximate_knn', type=bool, default=True, help='approximate_knn used in TsfKNN')
     parser.add_argument('--hash_size', type=int, default=10, help='hash_num used in LSH')
@@ -122,17 +123,14 @@ if __name__ == '__main__':
     # data_visualize(dataset, 500)
     plt.show()
 
-
     #create model
     model = get_model(args)
-    print("model:", model)
     # data transform
     transform = get_transform(args)
     # create trainer
     trainer = MLTrainer(args,model=model, transform=transform, dataset=dataset)
     # # train model
     trainer.train()
-    print("train finished")
     # # evaluate model
     fore,test_Y=trainer.evaluate(dataset, seq_len=args.seq_len, pred_len=args.pred_len)
     # 画图对比预测结果
