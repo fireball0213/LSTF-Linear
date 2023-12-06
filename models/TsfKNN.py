@@ -6,7 +6,6 @@ from utils.distance import euclidean, manhattan, chebyshev
 #显示进度
 from tqdm import tqdm
 from dataset.data_visualizer import plot_STL
-from sklearn import linear_model
 from sklearn.linear_model import LinearRegression
 from datasketch import MinHash, MinHashLSH
 from lshashpy3 import LSHash
