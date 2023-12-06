@@ -37,15 +37,13 @@ class MLTrainer:
             subseries = np.concatenate(([sliding_window_view(v, seq_len + pred_len) for v in test_data]))
             test_X = subseries[:, :seq_len]
             test_Y = subseries[:, seq_len:]
-        print("evaluating...")
         test_X = self.transform.transform(test_X)
         fore = self.model.forecast(test_X, pred_len=pred_len)
         # test_Y = self.transform.transform(test_Y)
         fore = self.transform.inverse_transform(fore)
 
-        #保留10位小数
-        a=mse(fore, test_Y).round(5)
-        print('mse:',a )
+        #保留5位小数
+        print('mse:',mse(fore, test_Y).round(5))
         print('mae:', mae(fore, test_Y).round(5))
         print('mape:', mape(fore, test_Y).round(5))
         print('smape:', smape(fore, test_Y).round(5))
