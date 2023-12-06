@@ -29,5 +29,13 @@ def smape(predict, target):
     return np.mean(smape_value)
 
 
-def mase(predict, target):
-    return np.mean(np.abs((target - predict) / (np.mean(np.abs(target[1:] - target[:-1])))))
+# def mase(predict, target):
+#     return np.mean(np.abs((target - predict) / (np.mean(np.abs(target[1:] - target[:-1])))))
+
+def naive_forecast(y:np.array, season:int=1):
+  "naive forecast: season-ahead step forecast, shift by season step ahead"
+  return y[:-season]
+def mase(predict, target, season=24):
+    return mae(target, predict) / mae(target[season:], naive_forecast(target, season))
+
+

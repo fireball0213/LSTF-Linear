@@ -4,10 +4,11 @@ from utils.metrics import mse, mae, mape, smape, mase
 
 
 class MLTrainer:
-    def __init__(self, model, transform, dataset):
+    def __init__(self, args,model, transform, dataset):
         self.model = model
         self.transform = transform
         self.dataset = dataset
+        self.period = args.period
 
     def train(self):
         train_X = self.dataset.train_data
@@ -43,10 +44,11 @@ class MLTrainer:
         fore = self.transform.inverse_transform(fore)
 
         #保留10位小数
-        print('mse:', mse(fore, test_Y).round(5))
+        a=mse(fore, test_Y).round(5)
+        print('mse:',a )
         print('mae:', mae(fore, test_Y).round(5))
         print('mape:', mape(fore, test_Y).round(5))
         print('smape:', smape(fore, test_Y).round(5))
-        print('mase:', mase(fore, test_Y).round(5))
+        print('mase:', mase(fore, test_Y,season=self.period ).round(5))
 
         return fore, test_Y
