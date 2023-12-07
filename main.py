@@ -57,8 +57,8 @@ def get_args():
     parser.add_argument('--beta', type=float, default=0.1, help='beta used in DoubleExponentialSmoothing')
 
     # multi-step ahead strategy used in LR and TsfKNN,多步直接预测or单步迭代预测
-    # parser.add_argument('--msas', type=str, default='MIMO', help=' options: [MIMO, recursive]')
-    parser.add_argument('--msas', type=str, default='recursive', help='options: [MIMO, recursive]')
+    parser.add_argument('--msas', type=str, default='MIMO', help=' options: [MIMO, recursive]')
+    # parser.add_argument('--msas', type=str, default='recursive', help='options: [MIMO, recursive]')
 
     #TsfKNN define
     parser.add_argument('--n_neighbors', type=int, default=9, help='number of neighbors used in TsfKNN')

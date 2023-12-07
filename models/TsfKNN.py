@@ -108,26 +108,18 @@ class TsfKNN(MLForecastModel):
             '''
             result = self.lsh_model.query((x_stl_trend + x_stl_seasonal).ravel(), num_results=self.k)
             indices_of_smallest_k = [res[0][1] for res in result]
-            if len(indices_of_smallest_k) == 0:
-                return np.zeros((1, pred_len))
+
 
         if self.msas == 'MIMO':
             # neighbor_fore = X_s_resid[indices_of_smallest_k, seq_len:] + X_s_seasonal[indices_of_smallest_k, seq_len:]#使用季节性+残差作为预测
+            if len(indices_of_smallest_k) == 0:
+                return np.zeros((1, pred_len))
             neighbor_fore = X_s_seasonal[indices_of_smallest_k, seq_len:]  # 使用季节性作为预测
             x_fore = np.mean(neighbor_fore, axis=0, keepdims=True)
             return x_fore
         elif self.msas == 'recursive':
-            neighbor_fore = X_s_resid[indices_of_smallest_k, seq_len] + X_s_seasonal[indices_of_smallest_k, seq_len]
-            # neighbor_fore = X_s_seasonal[indices_of_smallest_k, seq_len]#使用季节性作为预测
-            x_fore = np.mean(neighbor_fore, axis=0, keepdims=True)
-
-            x_new_seasonal = np.concatenate((x_stl_seasonal[1:], x_fore), axis=0)
-            x_new_resid = np.concatenate((x_stl_resid[1:], x_fore), axis=0)
-            x_new_trand = np.concatenate((x_stl_trend[1:], x_fore), axis=0)
-            if pred_len == 1:
-                return x_fore.reshape(1, -1)
-            else:
-                return np.concatenate((x_fore.reshape(1, -1),self.STL_search(x_new_trand,x_new_seasonal, x_new_resid,seq_len,pred_len - 1)), axis=1)
+            #不支持递归预测
+            print('不支持递归预测')
 
     def _forecast(self, X: np.ndarray, pred_len) -> np.ndarray:
         fore = []
