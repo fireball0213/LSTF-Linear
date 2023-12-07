@@ -72,12 +72,11 @@ def get_args():
     parser.add_argument('--decompose', type=bool, default=True, help='stl_modified distance used in TsfKNN')
     # parser.add_argument('--decompose', type=bool, default=False, help='stl_modified distance used in TsfKNN')
 
-    # trend predict method distance used in decompose stl
+    # trend predict method distance used in decompose STL
     parser.add_argument('--trend', type=str, default='plain', help='options: [plain, AR, STL, t_s]')#只用96个点训练线性模型，预测接下来的32个点
     # parser.add_argument('--trend', type=str, default='AR', help='options: [plain, AR, STL, t_s]')#用全部trend训练AR模型，再用96个点预测接下来的32个点
     # parser.add_argument('--trend', type=str, default='STL', help='options: [plain, AR, STL, t_s]')#在STL计算距离时考虑trend，实际效果基本相当于没做STL
     # parser.add_argument('--trend', type=str, default='t_s', help='options: [plain, AR, STL, t_s]')#将趋势和季节分量用两个KNN匹配，再相加预测
-
 
 
     # transform define
@@ -112,7 +111,6 @@ def get_transform(args):
         'Standardization': Standardization,
         'MeanNormalization':MeanNormalization,
         'BoxCox':BoxCox,
-
     }
     return transform_dict[args.transform](args)
 
@@ -141,6 +139,6 @@ if __name__ == '__main__':
     print('evaluate model')
     fore,test_Y=trainer.evaluate(dataset, seq_len=args.seq_len, pred_len=args.pred_len)
     # 画图对比预测结果
-    plot_forecast(fore, test_Y,500)
-    plot_all_forecast(fore, test_Y)
+    plot_forecast(fore, test_Y,500)#看所有预测结果上的第一个数据点预测的效果
+    plot_all_forecast(fore, test_Y)#看部分预测结果上的predict_len个数据点预测的效果
     plt.show()
