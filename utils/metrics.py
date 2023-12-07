@@ -10,17 +10,15 @@ def mae(predict, target):
 
 
 def mape(predict, target):
-    # 初始化错误数组为 nan
-    errors = np.full_like(target, fill_value=np.nan, dtype=np.float64)
+    # 先找到所有非零的位置
+    non_zero = target != 0
+    # 初始化 mape_value 数组
+    mape_value = np.zeros_like(target)
+    # 只在非零位置上计算 MAPE
+    mape_value[non_zero] = np.abs((target[non_zero] - predict[non_zero]) / target[non_zero])
+    return np.mean(mape_value)
 
-    # 找到非零目标值的索引
-    non_zero_indices = np.nonzero(target)
 
-    # 只对非零目标值计算百分比误差
-    errors[non_zero_indices] = np.abs((target[non_zero_indices] - predict[non_zero_indices]) / target[non_zero_indices])
-
-    # 计算平均值，忽略 nan
-    return np.nanmean(errors)
 
 
 def smape(predict, target):

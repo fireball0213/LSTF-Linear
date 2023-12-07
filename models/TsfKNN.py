@@ -11,7 +11,7 @@ from datasketch import MinHash, MinHashLSH
 from lshashpy3 import LSHash
 import matplotlib.pyplot as plt
 from utils.metrics import mse, mae, mape, smape, mase
-
+import time
 Num_perm=1024
 class TsfKNN(MLForecastModel):
     def __init__(self, args):
@@ -55,10 +55,14 @@ class TsfKNN(MLForecastModel):
                 # trend_y = subseries[:, self.seq_len:]
                 # self.trend_model.fit(trend_X, trend_y)
         if self.approximate_knn:
+            a=time.time()
             for i, d in enumerate(self.X_s):
                 # point = np.array([d[:self.seq_len]]) if d.ndim == 0 else d[:self.seq_len]
                 point=d[:self.seq_len]
+
                 self.lsh_model.index(point, extra_data=i)
+            b=time.time()
+            print(f"lsh_index time:{b-a}")
 
 
 
@@ -87,12 +91,15 @@ class TsfKNN(MLForecastModel):
 
     def _search(self, x, X_s, seq_len, pred_len):
         # 找到训练集中与x最相似的k个时间序列，然后对这k个时间序列的后pred_len个值求均值，作为预测值
+        # a = time.time()
         if self.approximate_knn==False:
             distances = self.distance(x, X_s[:, :seq_len])
             indices_of_smallest_k = np.argsort(distances)[:self.k]
         else:
             indices_of_smallest_k = self._lsh_search(x, self.k)
             # print(f"indices_of_smallest_k: {indices_of_smallest_k}")
+        # b = time.time()
+        # print(f"knn_search time:{b - a}")
 
         if self.msas == 'MIMO':
             neighbor_fore = X_s[indices_of_smallest_k, seq_len:]# 获取这k个最近邻时间序列的预测部分
@@ -109,22 +116,32 @@ class TsfKNN(MLForecastModel):
 
 
 
-    def STL_search(self, x_stl_seasonal,x_stl_resid, X_s_seasonal, X_s_resid, seq_len, pred_len):
+    def STL_search(self,x_stl_trend, x_stl_seasonal,x_stl_resid, X_s_seasonal, X_s_resid, seq_len, pred_len):
         # 假设 x_stl 是单个时间序列的 STL 分解结果
         # X_s_trend 和 X_s_seasonal 是训练数据集的趋势和季节性组件的窗口
         if self.approximate_knn == False:
-            # distances=self._stl_modified_distance(x_stl.seasonal+ x_stl.resid, X_s_seasonal[:, :seq_len]+X_s_resid[:, :seq_len])#使用季节性和残差计算距离
-            distances = self._stl_modified_distance(x_stl_seasonal, X_s_seasonal[:, :seq_len])  # 使用季节性计算距离
+            distances=self._stl_modified_distance(x_stl_seasonal+ x_stl_resid, X_s_seasonal[:, :seq_len]+X_s_resid[:, :seq_len])#使用季节性和残差计算距离
+            # distances = self._stl_modified_distance(x_stl_seasonal, X_s_seasonal[:, :seq_len])  # 使用季节性计算距离
             indices_of_smallest_k = np.argsort(distances)[:self.k]
         else:
-            indices_of_smallest_k = self._lsh_search(x_stl_seasonal, self.k)
+            '''
+            不能只用季节性，因为太小了，lsh没见过这么小的数据，会匹配不到
+            总会出现搜不到的情况，注意处理
+            '''
+            indices_of_smallest_k = self._lsh_search(x_stl_trend+x_stl_seasonal, self.k)
+            # indices_of_smallest_k = self._lsh_search( x_stl_seasonal, self.k)
+            if len(indices_of_smallest_k)==0:
+                return np.zeros((1,pred_len))
+
 
         if self.msas == 'MIMO':
-            neighbor_fore = X_s_resid[indices_of_smallest_k, seq_len:] + X_s_seasonal[indices_of_smallest_k, seq_len:]
+            # neighbor_fore = X_s_resid[indices_of_smallest_k, seq_len:] + X_s_seasonal[indices_of_smallest_k, seq_len:]#使用季节性+残差作为预测
+            neighbor_fore = X_s_seasonal[indices_of_smallest_k, seq_len:]#使用季节性作为预测
             x_fore = np.mean(neighbor_fore, axis=0, keepdims=True)
             return x_fore
         elif self.msas == 'recursive':
             neighbor_fore = X_s_resid[indices_of_smallest_k, seq_len] + X_s_seasonal[indices_of_smallest_k, seq_len]
+            # neighbor_fore = X_s_seasonal[indices_of_smallest_k, seq_len]#使用季节性作为预测
             x_fore = np.mean(neighbor_fore, axis=0, keepdims=True)
             x_new_seasonal = np.concatenate((x_stl_seasonal[ 1:], x_fore), axis=0)
             x_new_resid = np.concatenate((x_stl_resid[1:], x_fore), axis=0)
@@ -143,21 +160,28 @@ class TsfKNN(MLForecastModel):
             X_s_resid = sliding_window_view(self.X_stl.resid, seq_len + pred_len)
         #显示进度
         for x in tqdm(X):
+            # a=time.time()
             x = np.expand_dims(x, axis=0)
             x_stl = STL(x[0], period=self.period).fit()
             # 传入STL分解后的序列进行搜索
             if self.decompose:
-                x_fore = self.STL_search(x_stl.seasonal,x_stl.resid,  X_s_seasonal,X_s_resid, seq_len, pred_len)
+                x_fore = self.STL_search(x_stl.trend,x_stl.seasonal,x_stl.resid,  X_s_seasonal,X_s_resid, seq_len, pred_len)
                 if self.trend == 'AR':
                     x_stl_trend=self.trend_model.predict(x_stl.trend.reshape((1,-1))[:,-seq_len:])
+                    x_fore+=x_stl_trend.ravel()
                 elif self.trend == 'plain':
                     self.trend_model.fit(np.arange(seq_len).reshape((-1, 1)), x_stl.trend.reshape((-1, 1))[:, -seq_len:])
                     x_stl_trend = self.trend_model.predict(np.arange(seq_len, pred_len + seq_len).reshape((-1, 1)))
-                x_fore+=x_stl_trend.ravel()
+                    x_fore+=x_stl_trend.ravel()
             else:
                 x_fore = self._search(x, self.X_s, seq_len, pred_len)
             fore.append(x_fore)
-        fore = np.concatenate(fore, axis=0)
+            # b=time.time()
+            # print(f"forecast time:{b-a}")
+
+        # fore = np.concatenate(fore, axis=0)
+        fore = np.array(fore).reshape((-1, pred_len))
+        # print(fore.shape)
         return fore
 
 

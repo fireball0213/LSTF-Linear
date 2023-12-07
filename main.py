@@ -61,17 +61,17 @@ def get_args():
     # parser.add_argument('--msas', type=str, default='recursive', help='options: [MIMO, recursive]')
 
     #TsfKNN define
-    parser.add_argument('--n_neighbors', type=int, default=5, help='number of neighbors used in TsfKNN')
-    parser.add_argument('--distance', type=str, default='euclidean', help='distance used in TsfKNN')
-    # parser.add_argument('--distance', type=str, default='manhattan', help='distance used in TsfKNN')
+    parser.add_argument('--n_neighbors', type=int, default=9, help='number of neighbors used in TsfKNN')
+    # parser.add_argument('--distance', type=str, default='euclidean', help='distance used in TsfKNN')
+    parser.add_argument('--distance', type=str, default='manhattan', help='distance used in TsfKNN')
     # parser.add_argument('--distance', type=str, default='chebyshev', help='distance used in TsfKNN')
     parser.add_argument('--decompose', type=bool, default=True, help='stl_modified distance used in TsfKNN')
     # parser.add_argument('--decompose', type=bool, default=False, help='stl_modified distance used in TsfKNN')
     parser.add_argument('--trend', type=str, default='plain', help='options: [plain, AR]')#trend predict method distance used in stl_modified
     # parser.add_argument('--trend', type=str, default='AR', help='options: [plain, AR]')
-    parser.add_argument('--approximate_knn', type=bool, default=False, help='approximate_knn used in TsfKNN')
-    # parser.add_argument('--approximate_knn', type=bool, default=True, help='approximate_knn used in TsfKNN')
-    parser.add_argument('--hash_size', type=int, default=10, help='hash_num used in LSH')
+    # parser.add_argument('--approximate_knn', type=bool, default=False, help='approximate_knn used in TsfKNN')
+    parser.add_argument('--approximate_knn', type=bool, default=True, help='approximate_knn used in TsfKNN')
+    parser.add_argument('--hash_size', type=int, default=50, help='hash_num used in LSH')#影响查询速度，越大越快但越不准
 
 
     # transform define
@@ -132,6 +132,7 @@ if __name__ == '__main__':
     # # train model
     trainer.train()
     # # evaluate model
+    print('evaluate model')
     fore,test_Y=trainer.evaluate(dataset, seq_len=args.seq_len, pred_len=args.pred_len)
     # 画图对比预测结果
     plot_forecast(fore, test_Y,500)
