@@ -50,6 +50,7 @@ def plot_STL(stl,t):
     plt.plot(stl.trend[:t],label='trend')
     plt.plot(stl.seasonal[:t],label='seasonal')
     plt.plot(stl.resid[:t],label='resid')
+    plt.plot(stl.trend[:t] + stl.seasonal[:t], label='trend+seasonal')
     plt.title("STL decomposition of data")
     plt.legend()
     plt.show()

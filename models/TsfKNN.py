@@ -37,11 +37,11 @@ class TsfKNN(MLForecastModel):
 
     def _fit(self, X: np.ndarray) -> None:
         self.X = X[0, :, -1]
-        self.X_slide = sliding_window_view(self.X, self.seq_len)
+        # self.X_slide = sliding_window_view(self.X, self.seq_len)
         self.X_s = sliding_window_view(self.X, self.seq_len + self.pred_len)
         if self.decompose:
             self.X_stl = STL(self.X, period=self.period).fit()  # 对整个序列进行STL分解
-            # plot_STL(self.X_stl,2000)
+            # plot_STL(self.X_stl,400)
             subseries = sliding_window_view(self.X_stl.trend, self.seq_len + self.pred_len)
             self.trend_model = LinearRegression()
             if self.trend == 'AR':
@@ -81,45 +81,56 @@ class TsfKNN(MLForecastModel):
             else:
                 return np.concatenate((x_fore, self._search(x_new, X_s, seq_len, pred_len - 1)), axis=1)
 
-    def STL_search(self, x_stl_trend,x_stl_seasonal , x_stl_resid, seq_len, pred_len):
+    def STL_search(self,x_stl_origin, x_stl_trend,x_stl_seasonal , x_stl_resid, seq_len, pred_len):
         # 假设 x_stl 是单个时间序列的 STL 分解结果
         # X_s_trend 和 X_s_seasonal 是训练数据集的趋势和季节性组件的窗口
-        # X_s_origin = sliding_window_view(self.X_stl, seq_len + pred_len)
+        # X_s_origin = sliding_window_view(self.X_stl.observed, seq_len + pred_len)
         X_s_trend = sliding_window_view(self.X_stl.trend, seq_len + pred_len)
         X_s_seasonal = sliding_window_view(self.X_stl.seasonal, seq_len + pred_len)
         X_s_resid = sliding_window_view(self.X_stl.resid, seq_len + pred_len)
-        if self.approximate_knn == False:
+        '''
+        优化后的代码，快了3倍，不再需要_stl_modified_distance函数，但需要distance函数支持向量化
+        '''
+        if self.approximate_knn == False and self.msas == 'MIMO':
             if self.trend == 'STL':
-                '''
-                优化后的代码，快了3倍，不再需要_stl_modified_distance函数，但需要distance函数支持向量化
-                '''
-                # distances = self.distance(x_stl_trend+x_stl_seasonal ,X_s_trend[:, :seq_len]+X_s_seasonal[:, :seq_len])
-                # distances = self.distance(x_stl.origin, X_s_origin[:, :seq_len])
-                distances = self.distance(x_stl_trend + x_stl_seasonal + x_stl_resid,
-                                          X_s_trend[:, :seq_len] + X_s_seasonal[:, :seq_len] + X_s_resid[:, :seq_len])
+                distances = self.distance(x_stl_trend+x_stl_seasonal ,X_s_trend[:, :seq_len]+X_s_seasonal[:, :seq_len])
+                # distances = self.distance(x_stl_origin, X_s_origin[:, :seq_len])
+                indices_of_smallest_k = np.argsort(distances)[:self.k]
+                # neighbor_fore = X_s_origin[indices_of_smallest_k, seq_len:]#等价于不适用STL
+                neighbor_fore = X_s_trend[indices_of_smallest_k, seq_len:] + X_s_seasonal[indices_of_smallest_k,seq_len:]
+            elif self.trend == 't_s':
+                distance_t = self.distance(x_stl_trend, X_s_trend[:, :seq_len])
+                distance_s = self.distance(x_stl_seasonal, X_s_seasonal[:, :seq_len])
+                indices_of_smallest_k_t = np.argsort(distance_t)[:self.k]
+                indices_of_smallest_k_s = np.argsort(distance_s)[:self.k]
+                neighbor_fore = X_s_trend[indices_of_smallest_k_t, seq_len:] + X_s_seasonal[indices_of_smallest_k_s,seq_len:]
             else:
                 # distances=self.distance(x_stl_seasonal+ x_stl_resid, X_s_seasonal[:, :seq_len]+X_s_resid[:, :seq_len])#使用季节性和残差计算距离
                 distances = self.distance(x_stl_seasonal, X_s_seasonal[:, :seq_len])  # 使用季节性计算距离
-            indices_of_smallest_k = np.argsort(distances)[:self.k]
+                indices_of_smallest_k = np.argsort(distances)[:self.k]
+                neighbor_fore = X_s_resid[indices_of_smallest_k, seq_len:] + X_s_seasonal[indices_of_smallest_k,
+                                                                             seq_len:]  # 使用季节性+残差作为预测
+                # neighbor_fore = X_s_seasonal[indices_of_smallest_k, seq_len:]  # 使用季节性作为预测
+
         else:
             '''
             不能只用季节性，因为太小了，lsh没见过这么小的数据，会匹配不到
-            总会出现搜不到的情况，注意处理
+            总会出现搜不到的情况，注意处理，使用非模糊knn
             '''
-            result = self.lsh_model.query((x_stl_trend + x_stl_seasonal).ravel(), num_results=self.k)
-            indices_of_smallest_k = [res[0][1] for res in result]
+            result = self.lsh_model.query((x_stl_trend + x_stl_seasonal+x_stl_resid).ravel(), num_results=self.k)
 
+            if len(result) <= 1 :
+                distances = self.distance(x_stl_seasonal, X_s_seasonal[:, :seq_len])  # 使用季节性计算距离
+                indices_of_smallest_k = np.argsort(distances)[:self.k]
+            else:
+                indices_of_smallest_k = [res[0][1] for res in result]
+                if indices_of_smallest_k[0]==None:
+                    print(result)
+            neighbor_fore = X_s_resid[indices_of_smallest_k, seq_len:] + X_s_seasonal[indices_of_smallest_k,seq_len:]  # 使用季节性+残差作为预测
+            # neighbor_fore = X_s_seasonal[indices_of_smallest_k, seq_len:]  # 使用季节性作为预测
+        x_fore = np.mean(neighbor_fore, axis=0, keepdims=True)
+        return x_fore
 
-        if self.msas == 'MIMO':
-            # neighbor_fore = X_s_resid[indices_of_smallest_k, seq_len:] + X_s_seasonal[indices_of_smallest_k, seq_len:]#使用季节性+残差作为预测
-            if len(indices_of_smallest_k) == 0:
-                return np.zeros((1, pred_len))
-            neighbor_fore = X_s_seasonal[indices_of_smallest_k, seq_len:]  # 使用季节性作为预测
-            x_fore = np.mean(neighbor_fore, axis=0, keepdims=True)
-            return x_fore
-        elif self.msas == 'recursive':
-            #不支持递归预测
-            print('不支持递归预测')
 
     def _forecast(self, X: np.ndarray, pred_len) -> np.ndarray:
         fore = []
@@ -130,7 +141,7 @@ class TsfKNN(MLForecastModel):
             x_stl = STL(x[0], period=self.period).fit()
             # 传入STL分解后的序列进行搜索
             if self.decompose:
-                x_fore = self.STL_search(x_stl.trend,x_stl.seasonal,x_stl.resid, self.seq_len, pred_len)
+                x_fore = self.STL_search(x_stl.observed,x_stl.trend,x_stl.seasonal,x_stl.resid, self.seq_len, pred_len)
                 if self.trend == 'AR':
                     x_stl_trend = self.trend_model.predict(x_stl.trend.reshape((1, -1))[:, -self.seq_len:])
                     x_fore += x_stl_trend.ravel()

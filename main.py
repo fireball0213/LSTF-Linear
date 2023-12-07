@@ -65,15 +65,19 @@ def get_args():
     # parser.add_argument('--distance', type=str, default='euclidean', help='distance used in TsfKNN')
     parser.add_argument('--distance', type=str, default='manhattan', help='distance used in TsfKNN')
     # parser.add_argument('--distance', type=str, default='chebyshev', help='distance used in TsfKNN')
+    parser.add_argument('--approximate_knn', type=bool, default=False, help='approximate_knn used in TsfKNN')
+    # parser.add_argument('--approximate_knn', type=bool, default=True, help='approximate_knn used in TsfKNN')
+    parser.add_argument('--hash_size', type=int, default=120, help='hash_num used in LSH')  # 影响查询速度，越大越快但越不准
+
     parser.add_argument('--decompose', type=bool, default=True, help='stl_modified distance used in TsfKNN')
     # parser.add_argument('--decompose', type=bool, default=False, help='stl_modified distance used in TsfKNN')
-    # trend predict method distance used in stl_modified
-    parser.add_argument('--trend', type=str, default='plain', help='options: [plain, AR, STL]')#只用96个点训练线性模型，预测接下来的32个点
-    # parser.add_argument('--trend', type=str, default='AR', help='options: [plain, AR, STL]')#用全部trend训练AR模型，再用96个点预测接下来的32个点
-    # parser.add_argument('--trend', type=str, default='STL', help='options: [plain, AR, STL]')#在STL计算距离时考虑trend，如果同时考虑了seasonal和resid，相当于没做STL
-    # parser.add_argument('--approximate_knn', type=bool, default=False, help='approximate_knn used in TsfKNN')
-    parser.add_argument('--approximate_knn', type=bool, default=True, help='approximate_knn used in TsfKNN')
-    parser.add_argument('--hash_size', type=int, default=120, help='hash_num used in LSH')#影响查询速度，越大越快但越不准
+
+    # trend predict method distance used in decompose stl
+    parser.add_argument('--trend', type=str, default='plain', help='options: [plain, AR, STL, t_s]')#只用96个点训练线性模型，预测接下来的32个点
+    # parser.add_argument('--trend', type=str, default='AR', help='options: [plain, AR, STL, t_s]')#用全部trend训练AR模型，再用96个点预测接下来的32个点
+    # parser.add_argument('--trend', type=str, default='STL', help='options: [plain, AR, STL, t_s]')#在STL计算距离时考虑trend，实际效果基本相当于没做STL
+    # parser.add_argument('--trend', type=str, default='t_s', help='options: [plain, AR, STL, t_s]')#将趋势和季节分量用两个KNN匹配，再相加预测
+
 
 
     # transform define
