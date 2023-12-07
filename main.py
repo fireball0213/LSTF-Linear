@@ -57,8 +57,8 @@ def get_args():
     parser.add_argument('--beta', type=float, default=0.1, help='beta used in DoubleExponentialSmoothing')
 
     # multi-step ahead strategy used in LR and TsfKNN,多步直接预测or单步迭代预测
-    parser.add_argument('--msas', type=str, default='MIMO', help=' options: [MIMO, recursive]')
-    # parser.add_argument('--msas', type=str, default='recursive', help='options: [MIMO, recursive]')
+    # parser.add_argument('--msas', type=str, default='MIMO', help=' options: [MIMO, recursive]')
+    parser.add_argument('--msas', type=str, default='recursive', help='options: [MIMO, recursive]')
 
     #TsfKNN define
     parser.add_argument('--n_neighbors', type=int, default=9, help='number of neighbors used in TsfKNN')
@@ -71,8 +71,8 @@ def get_args():
     parser.add_argument('--trend', type=str, default='plain', help='options: [plain, AR, STL]')#只用96个点训练线性模型，预测接下来的32个点
     # parser.add_argument('--trend', type=str, default='AR', help='options: [plain, AR, STL]')#用全部trend训练AR模型，再用96个点预测接下来的32个点
     # parser.add_argument('--trend', type=str, default='STL', help='options: [plain, AR, STL]')#在STL计算距离时考虑trend，如果同时考虑了seasonal和resid，相当于没做STL
-    parser.add_argument('--approximate_knn', type=bool, default=False, help='approximate_knn used in TsfKNN')
-    # parser.add_argument('--approximate_knn', type=bool, default=True, help='approximate_knn used in TsfKNN')
+    # parser.add_argument('--approximate_knn', type=bool, default=False, help='approximate_knn used in TsfKNN')
+    parser.add_argument('--approximate_knn', type=bool, default=True, help='approximate_knn used in TsfKNN')
     parser.add_argument('--hash_size', type=int, default=120, help='hash_num used in LSH')#影响查询速度，越大越快但越不准
 
 
