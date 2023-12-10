@@ -15,6 +15,9 @@ import time
 class TsfKNN(MLForecastModel):
     def __init__(self, args):
         self.k = args.n_neighbors
+        self.seq_len = args.seq_len
+        self.pred_len = args.pred_len
+        self.msas = args.msas
         if args.distance == 'euclidean':
             self.distance = euclidean
         elif args.distance == 'manhattan':
@@ -22,12 +25,9 @@ class TsfKNN(MLForecastModel):
         elif args.distance == 'chebyshev':
             self.distance = chebyshev
         self.decompose = args.decompose  # 是否考虑趋势和季节性
-        self.trend = args.trend
-        self.msas = args.msas
         self.period = args.period  # 季节性的值
+        self.trend = args.trend
         self.approximate_knn = args.approximate_knn  # 是否使用近似knn
-        self.seq_len = args.seq_len
-        self.pred_len = args.pred_len
         self.hash_size = args.hash_size
         super().__init__()
 
@@ -51,12 +51,12 @@ class TsfKNN(MLForecastModel):
 
     def _search(self, x, X_slide, seq_len, pred_len):
         # 找到训练集中与x最相似的k个时间序列，然后对这k个时间序列的后pred_len个值求均值，作为预测值
-        if self.approximate_knn == False:
-            distances = self.distance(x, X_slide[:, :seq_len])
-            indices_of_smallest_k = np.argsort(distances)[:self.k]
-        else:
+        if self.approximate_knn:
             result = self.lsh_model.query(x.ravel(), num_results=self.k)
             indices_of_smallest_k = [res[0][1] for res in result]
+        else:
+            distances = self.distance(x, X_slide[:, :seq_len])
+            indices_of_smallest_k = np.argsort(distances)[:self.k]
 
         if self.msas == 'MIMO':
             neighbor_fore = X_slide[indices_of_smallest_k, seq_len:]  # 获取这k个最近邻时间序列的预测部分
@@ -73,12 +73,13 @@ class TsfKNN(MLForecastModel):
 
     def STL_search(self,x_stl_origin, x_stl_trend,x_stl_seasonal , x_stl_resid, seq_len, pred_len):
         #在STL分解后的序列上进行搜索
+
         # X_s_origin = sliding_window_view(self.X_stl.observed, seq_len + pred_len)
         X_s_trend = sliding_window_view(self.X_stl.trend, seq_len + pred_len)
         X_s_seasonal = sliding_window_view(self.X_stl.seasonal, seq_len + pred_len)
         X_s_resid = sliding_window_view(self.X_stl.resid, seq_len + pred_len)
         '''
-        优化后的代码，快了3倍，不再需要_stl_modified_distance函数，但需要distance函数支持向量化
+        优化后的代码，快了3倍，不再需要self._stl_modified_distance函数，但需要self.distance函数支持向量化
         '''
         if self.approximate_knn == False and self.msas == 'MIMO':
             if self.trend == 'STL':
