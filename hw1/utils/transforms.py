@@ -125,44 +125,40 @@ class MeanNormalization(Transform):
         return inverse_data
 
 # 实现BoxCox的类，注意需要将数据转换为正数
-
 class BoxCox(Transform):
     def __init__(self, args):
         self.lam = 0.
-        pass
-
-    def _ensure_three_dimensions(self, data):
-        # Ensure data is three-dimensional
-        if data.ndim == 2:
-            data = data[np.newaxis, ...]  # Add a new dimension at the start
-        return data
+        self.min_val = 0
+        self.original_shape = None
 
     def transform(self, data, update=False):
-        data = self._ensure_three_dimensions(data)
-        data = data - data.min(axis=1, keepdims=True) + 1
-        norm_data = np.empty_like(data)
-
+        # 保存原始数据形状以便逆变换
+        self.original_shape = data.shape
+        data_flattened = data.ravel()
         if update:
-            self.lam = np.zeros(data.shape[-1])  # For storing lambda for each feature
-
-        for i in range(data.shape[-1]):
-            if update:
-                transformed, self.lam[i] = boxcox(data[0, :, i])
-                norm_data[0, :, i] = transformed
-            else:
-                norm_data[0, :, i] = boxcox(data[0, :, i], self.lam[i])
-
-        return np.squeeze(norm_data)  # Remove any singleton dimensions
+            # 为保证数据为正，找到并记录最小值
+            self.min_val = np.min(data_flattened)
+            # 将所有数据偏移使其为正
+            data_positive = data_flattened - self.min_val + 1
+            # 应用 BoxCox 变换
+            transformed_data, self.lam = boxcox(data_positive)
+        else:
+            # 如果不更新，使用已有的lambda和最小值
+            data_positive = data_flattened - self.min_val + 1
+            transformed_data = boxcox(data_positive, lmbda=self.lam)
+        # 将数据还原为原始形状
+        return transformed_data.reshape(self.original_shape)
 
     def inverse_transform(self, data):
-        data = self._ensure_three_dimensions(data)
-        inverse_data = np.empty_like(data)
+        self.original_shape = data.shape
+        data_flattened = data.ravel()
+        # 应用 BoxCox 逆变换
+        data_original = inv_boxcox(data_flattened, self.lam)
+        # 将数据偏移还原
+        data_original = data_original + self.min_val - 1
+        # 将数据还原为原始形状
+        return data_original.reshape(self.original_shape)
 
-        for i in range(data.shape[-1]):
-            inverse_data[0, :, i] = inv_boxcox(data[0, :, i], self.lam[i])
-
-        inverse_data = inverse_data + data.min(axis=1, keepdims=True) - 1
-        return np.squeeze(inverse_data)  # Remove any singleton dimensions
 
 
 #实现数据的标准化，使用sklearn中的StandardScaler

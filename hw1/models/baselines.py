@@ -45,33 +45,42 @@ class Autoregression(MLForecastModel):
     def __init__(self, args) -> None:
         super().__init__()
         self.seq_len=args.seq_len
+        self.pred_len = args.pred_len
         self.model = linear_model.LinearRegression()
+        self.msas= args.msas
 
     def _fit(self, X: np.ndarray) -> None:
         X_target=X[:, :, -1]
-        #滑动窗口可以掉包实现
-        subseries = np.concatenate(([sliding_window_view(v, self.seq_len+1) for v in X_target]))
+        if self.msas=="recursive":
+            subseries = np.concatenate(([sliding_window_view(v, self.seq_len + 1) for v in X_target]))#单输出迭代预测
+        elif self.msas=="MIMO":
+            subseries = np.concatenate([sliding_window_view(v, self.seq_len + self.pred_len) for v in X_target])#MIMO预测
         train_X = subseries[:, :self.seq_len]
         train_Y = subseries[:, self.seq_len:]
         self.model.fit(train_X, train_Y)
 
     def _forecast(self, X: np.ndarray, pred_len) -> np.ndarray:
+        if self.msas=="recursive":#单输出迭代预测
         #生成输出长度为pred_len的预测值，self.model只能输出1个值，所以需要将预测值一个一个的添加到X中，滑动窗口预测
         #X的维度为(num_samples, seq_len),预测值输出的维度为(num_samples, pred_len)
         # 初始化预测数组
-        predictions = np.empty((X.shape[0], pred_len))
-        for i in range(pred_len):
-            # 使用当前窗口进行预测
+            predictions = np.empty((X.shape[0], pred_len))
+            for i in range(pred_len):
+                # 使用当前窗口进行预测
+                current_window = X[:, -self.seq_len:]
+                pred = self.model.predict(current_window)
+                # 更新预测结果
+                predictions[:, i] = pred.reshape(-1)
+                # 更新输入数据以包含最新预测
+                X = np.concatenate((X, pred.reshape(-1, 1)), axis=1)
+            return predictions
+        elif self.msas == "MIMO":
+            #MIMO预测
+            assert pred_len == self.pred_len, "预测长度与模型训练时的长度不一致"
+            # 使用模型直接进行预测
             current_window = X[:, -self.seq_len:]
-            pred = self.model.predict(current_window)
-
-            # 更新预测结果
-            predictions[:, i] = pred.reshape(-1)
-
-            # 更新输入数据以包含最新预测
-            X = np.concatenate((X, pred.reshape(-1, 1)), axis=1)
-
-        return predictions
+            predictions = self.model.predict(current_window)
+            return predictions
 
 #一个指数滑动平均的类
 class ExponentialMovingAverage(MLForecastModel):
@@ -79,6 +88,9 @@ class ExponentialMovingAverage(MLForecastModel):
         super().__init__()
         self.alpha=args.alpha
         self.seq_len=args.seq_len
+        self.pred_len = args.pred_len
+        self.msas= args.msas
+
 
     def _fit(self, X: np.ndarray) -> None:
         X_target = X[:, :, -1]
@@ -90,29 +102,38 @@ class ExponentialMovingAverage(MLForecastModel):
         for i in range(1, X_target.shape[1]):
             EMA[:, i]=self.alpha*X_target[:, i]+(1-self.alpha)*EMA[:, i-1]
         #使用EMA作为特征进行预测
-        subseries = np.concatenate(([sliding_window_view(v, self.seq_len + 1) for v in EMA]))
+        if self.msas=="recursive":
+            subseries = np.concatenate(([sliding_window_view(v, self.seq_len + 1) for v in EMA]))
+        elif self.msas == "MIMO":
+            subseries = np.concatenate(([sliding_window_view(v, self.seq_len + self.pred_len) for v in EMA]))
+
         train_X = subseries[:, :self.seq_len]
         train_Y = subseries[:, self.seq_len:]
         self.model = linear_model.LinearRegression()
         self.model.fit(train_X, train_Y)
 
     def _forecast(self, X: np.ndarray, pred_len) -> np.ndarray:
+        if self.msas=="recursive":
+        #单输出迭代预测
         #生成输出长度为pred_len的预测值，self.model只能输出1个值，所以需要将预测值一个一个的添加到X中，滑动窗口预测
         #X的维度为(num_samples, seq_len),预测值输出的维度为(num_samples, pred_len)
-        # 初始化预测数组
-        predictions = np.empty((X.shape[0], pred_len))
-        for i in range(pred_len):
-            # 使用当前窗口进行预测
+            predictions = np.empty((X.shape[0], pred_len))
+            for i in range(pred_len):
+                # 使用当前窗口进行预测
+                current_window = X[:, -self.seq_len:]
+                pred = self.model.predict(current_window)
+                # 更新预测结果
+                predictions[:, i] = pred.reshape(-1)
+                # 更新输入数据以包含最新预测
+                X = np.concatenate((X, pred.reshape(-1, 1)), axis=1)
+            return predictions
+
+        elif self.msas=="MIMO":# MIMO预测
+            assert pred_len == self.pred_len, "预测长度与模型训练时的长度不一致"
+            # 使用模型直接进行预测
             current_window = X[:, -self.seq_len:]
-            pred = self.model.predict(current_window)
-
-            # 更新预测结果
-            predictions[:, i] = pred.reshape(-1)
-
-            # 更新输入数据以包含最新预测
-            X = np.concatenate((X, pred.reshape(-1, 1)), axis=1)
-
-        return predictions
+            predictions = self.model.predict(current_window)
+            return predictions
 
 
 
@@ -123,8 +144,11 @@ class DoubleExponentialSmoothing(MLForecastModel):
         self.alpha = args.alpha  # 水平平滑参数
         self.beta = args.beta    # 趋势平滑参数
         self.seq_len = args.seq_len
+        self.pred_len = args.pred_len
         self.level = None
         self.trend = None
+        self.msas= args.msas
+
 
     def _fit(self, X: np.ndarray) -> None:
         X_target = X[:, :, -1]
@@ -142,30 +166,36 @@ class DoubleExponentialSmoothing(MLForecastModel):
 
         # 使用水平和趋势作为特征进行预测
         features = np.concatenate([self.level, self.trend], axis=1)
-        subseries = [sliding_window_view(v, self.seq_len + 1) for v in features]
+        if self.msas=="recursive":
+            subseries = [sliding_window_view(v, self.seq_len + 1) for v in features]
+        elif self.msas == "MIMO":
+            subseries = [sliding_window_view(v, self.seq_len + self.pred_len) for v in features]
         subseries = np.concatenate(subseries, axis=0)
         train_X = subseries[:, :self.seq_len]
-        train_Y = subseries[:, self.seq_len]
+        train_Y = subseries[:, self.seq_len:]
         self.model = linear_model.LinearRegression()
         self.model.fit(train_X, train_Y)
 
 
 
     def _forecast(self, X: np.ndarray, pred_len) -> np.ndarray:
-
-        predictions = np.empty((X.shape[0], pred_len))
-        for i in range(pred_len):
-            # 使用当前窗口进行预测
+        if self.msas=="recursive":
+            predictions = np.empty((X.shape[0], pred_len))
+            for i in range(pred_len):
+                # 使用当前窗口进行预测
+                current_window = X[:, -self.seq_len:]
+                pred = self.model.predict(current_window)
+                # 更新预测结果
+                predictions[:, i] = pred.reshape(-1)
+                # 更新输入数据以包含最新预测
+                X = np.concatenate((X, pred.reshape(-1, 1)), axis=1)
+            return predictions
+        elif self.msas == "MIMO":
+            assert pred_len == self.pred_len, "预测长度与模型训练时的长度不一致"
+            # 使用模型直接进行预测
             current_window = X[:, -self.seq_len:]
-            pred = self.model.predict(current_window)
-
-            # 更新预测结果
-            predictions[:, i] = pred.reshape(-1)
-
-            # 更新输入数据以包含最新预测
-            X = np.concatenate((X, pred.reshape(-1, 1)), axis=1)
-
-        return predictions
+            predictions = self.model.predict(current_window)
+            return predictions
 
 
 
