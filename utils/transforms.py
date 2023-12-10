@@ -4,10 +4,7 @@ from scipy.stats import boxcox
 from scipy.special import inv_boxcox
 #引入StandardScaler
 from sklearn.preprocessing import StandardScaler,MinMaxScaler,RobustScaler,MaxAbsScaler
-
-
-
-
+import matplotlib.pyplot as plt
 
 
 class Transform:
@@ -106,10 +103,6 @@ class Standardization(Transform):
             # 计算每个变量的均值和标准差
             self.mean = np.mean(data, axis=1)
             self.std = np.std(data, axis=1)
-        else:
-            #只保留目标列的均值和标准差
-            self.mean = self.mean.ravel()[-1]
-            self.std = self.std.ravel()[-1]
         # 检查标准差是否为0
         if np.any(self.std == 0):
             # 对于标准差为0的变量，只减去均值
@@ -117,7 +110,7 @@ class Standardization(Transform):
         else:
             # 将数据标准化
             norm_data = (data - self.mean) / self.std
-
+            #print(np.mean(norm_data, axis=1),np.std(norm_data, axis=1))#明明多变量是第三个维度，但统计的是第二个维度
         return norm_data
 
     def inverse_transform(self, data):
