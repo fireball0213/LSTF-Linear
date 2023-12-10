@@ -4,69 +4,85 @@ from models.baselines import Autoregression,ExponentialMovingAverage,DoubleExpon
 from utils.transforms import IdentityTransform, Normalization, Standardization,MeanNormalization,BoxCox
 from trainer import MLTrainer
 from dataset.dataset import get_dataset
-from dataset.data_visualizer import data_visualize,plot_forecast
+from dataset.data_visualizer import data_visualize,plot_forecast,plot_all_forecast
 import argparse
 import random
 import numpy as np
-
+import matplotlib.pyplot as plt
 
 def get_args():
     parser = argparse.ArgumentParser()
 
     # dataset config
-    # parser.add_argument('--data_path', type=str, default='./dataset/ETT/ETTh1.csv')
-    # parser.add_argument('--data_path', type=str, default='./dataset/electricity/electricity.csv')
-    # parser.add_argument('--data_path', type=str, default='./dataset/exchange_rate/exchange_rate.csv')
-    parser.add_argument('--data_path', type=str, default='./dataset/illness/national_illness.csv')
-    # parser.add_argument('--data_path', type=str, default='./dataset/traffic/traffic.csv')
-    # parser.add_argument('--data_path', type=str, default='./dataset/weather/weather.csv')
-
     parser.add_argument('--train_data_path', type=str, default='./dataset/m4/Daily-train.csv')
     parser.add_argument('--test_data_path', type=str, default='./dataset/m4/Daily-test.csv')
 
+    parser.add_argument('--data_path', type=str, default='./dataset/ETT/ETTh1.csv')
+    # parser.add_argument('--data_path', type=str, default='./dataset/ETT/ETTh2.csv')
+    # parser.add_argument('--data_path', type=str, default='./dataset/ETT/ETTm1.csv')
+    # parser.add_argument('--data_path', type=str, default='./dataset/illness/national_illness.csv')
+    # parser.add_argument('--data_path', type=str, default='./dataset/electricity/electricity.csv')
+    # parser.add_argument('--data_path', type=str, default='./dataset/exchange_rate/exchange_rate.csv')
+    # parser.add_argument('--data_path', type=str, default='./dataset/traffic/traffic.csv')
+    # parser.add_argument('--data_path', type=str, default='./dataset/weather/weather.csv')
+
+    parser.add_argument('--period', type=int, default=24, help='period used in TsfKNN and MASE,ETT:24,illness:52')
+    # parser.add_argument('--period', type=int, default=52, help='period used in TsfKNN and MASE,ETT:24,illness:52')
+
     # parser.add_argument('--dataset', type=str, default='M4', help='dataset type, options: [M4, ETT, Custom]')
-    # parser.add_argument('--dataset', type=str, default='ETT', help='dataset type, options: [M4, ETT, Custom]')
-    parser.add_argument('--dataset', type=str, default='Custom', help='dataset type, options: [M4, ETT, Custom]')
+    parser.add_argument('--dataset', type=str, default='ETT', help='dataset type, options: [M4, ETT, Custom]')
+    # parser.add_argument('--dataset', type=str, default='Custom', help='dataset type, options: [M4, ETT, Custom]')
 
     parser.add_argument('--target', type=str, default='OT', help='target feature')
     parser.add_argument('--ratio_train', type=int, default=0.6, help='train dataset length')
     parser.add_argument('--ratio_val', type=int, default=0, help='validate dataset length')
     parser.add_argument('--ratio_test', type=int, default=0.4, help='input sequence length')
+    parser.add_argument('--frequency', type=str, default='h', help='frequency of time series data, options: [h, m]')
 
     # forcast task config
     parser.add_argument('--seq_len', type=int, default=96, help='input sequence length')
     parser.add_argument('--pred_len', type=int, default=32, help='prediction sequence length')
 
+
     # model define
     # parser.add_argument('--model', type=str, default='MeanForecast', help='model name')#, required=True
     # parser.add_argument('--model', type=str, default='LastValueForecast', help='model name')#, required=True
-    parser.add_argument('--model', type=str, default='Autoregression', help='model name')#, required=True
+    # parser.add_argument('--model', type=str, default='Autoregression', help='model name')#, required=True
     # parser.add_argument('--model', type=str, default='ExponentialMovingAverage', help='model name')#, required=True
     # parser.add_argument('--model', type=str, default='DoubleExponentialSmoothing', help='model name')#, required=True
-    # parser.add_argument('--model', type=str, default='TsfKNN', help='model name')#, required=True
+    parser.add_argument('--model', type=str, default='TsfKNN', help='model name')#, required=True
 
-    parser.add_argument('--alpha', type=float, default=0.7, help='alpha used in ExponentialMovingAverage')
-    parser.add_argument('--beta', type=float, default=0.05, help='beta used in DoubleExponentialSmoothing')
+    # EMA define
+    parser.add_argument('--alpha', type=float, default=0.9, help='alpha used in ExponentialMovingAverage')
+    parser.add_argument('--beta', type=float, default=0.1, help='beta used in DoubleExponentialSmoothing')
+
+    # multi-step ahead strategy used in LR and TsfKNN,多步直接预测or单步迭代预测
+    parser.add_argument('--msas', type=str, default='MIMO', help=' options: [MIMO, recursive]')
+    # parser.add_argument('--msas', type=str, default='recursive', help='options: [MIMO, recursive]')
 
     #TsfKNN define
-    parser.add_argument('--n_neighbors', type=int, default=5, help='number of neighbors used in TsfKNN')
-    parser.add_argument('--distance', type=str, default='euclidean', help='distance used in TsfKNN')
-    # parser.add_argument('--distance', type=str, default='manhattan', help='distance used in TsfKNN')
+    parser.add_argument('--n_neighbors', type=int, default=9, help='number of neighbors used in TsfKNN')
+    # parser.add_argument('--distance', type=str, default='euclidean', help='distance used in TsfKNN')
+    parser.add_argument('--distance', type=str, default='manhattan', help='distance used in TsfKNN')
     # parser.add_argument('--distance', type=str, default='chebyshev', help='distance used in TsfKNN')
-    parser.add_argument('--decompose', type=bool, default=True, help='stl_modified distance used in TsfKNN')
-    # parser.add_argument('--decompose', type=bool, default=False, help='stl_modified distance used in TsfKNN')
-    # parser.add_argument('--period', type=int, default=24, help='period used in TsfKNN,ETT:24,illness:52')
-    parser.add_argument('--period', type=int, default=52, help='period used in TsfKNN,ETT:24,illness:52')
-    parser.add_argument('--msas', type=str, default='MIMO', help='multi-step ahead strategy used in TsfKNN, options: '
-                                                                 '[MIMO, recursive]')
-    # parser.add_argument('--msas', type=str, default='recursive', help='options: ''[MIMO, recursive]')
     parser.add_argument('--approximate_knn', type=bool, default=False, help='approximate_knn used in TsfKNN')
     # parser.add_argument('--approximate_knn', type=bool, default=True, help='approximate_knn used in TsfKNN')
+    parser.add_argument('--hash_size', type=int, default=120, help='hash_num used in LSH')  # 影响查询速度，越大越快但越不准
+
+    parser.add_argument('--decompose', type=bool, default=True, help='stl_modified distance used in TsfKNN')
+    # parser.add_argument('--decompose', type=bool, default=False, help='stl_modified distance used in TsfKNN')
+
+    # trend predict method distance used in decompose STL
+    parser.add_argument('--trend', type=str, default='plain', help='options: [plain, AR, STL, t_s]')#只用96个点训练线性模型，预测接下来的32个点
+    # parser.add_argument('--trend', type=str, default='AR', help='options: [plain, AR, STL, t_s]')#用全部trend训练AR模型，再用96个点预测接下来的32个点
+    # parser.add_argument('--trend', type=str, default='STL', help='options: [plain, AR, STL, t_s]')#在STL计算距离时考虑trend，实际效果基本相当于没做STL
+    # parser.add_argument('--trend', type=str, default='t_s', help='options: [plain, AR, STL, t_s]')#将趋势和季节分量用两个KNN匹配，再相加预测
+
 
     # transform define
     # parser.add_argument('--transform', type=str, default='IdentityTransform')
-    # parser.add_argument('--transform', type=str, default='Normalization')
-    parser.add_argument('--transform', type=str, default='Standardization')
+    parser.add_argument('--transform', type=str, default='Normalization')
+    # parser.add_argument('--transform', type=str, default='Standardization')
     # parser.add_argument('--transform', type=str, default='MeanNormalization')
     # parser.add_argument('--transform', type=str, default='BoxCox')
 
@@ -95,7 +111,6 @@ def get_transform(args):
         'Standardization': Standardization,
         'MeanNormalization':MeanNormalization,
         'BoxCox':BoxCox,
-
     }
     return transform_dict[args.transform](args)
 
@@ -108,26 +123,22 @@ if __name__ == '__main__':
     args = get_args()
     # load dataset
     dataset = get_dataset(args)
-    # print(dataset.train_data.shape)
-    # print(dataset.test_data.shape)
-    # print(dataset.type)
-    data_visualize(dataset, 100)
-    # print(dataset.train_data[0])
-    # plt.plot([1, 2])
 
-
+    # data_visualize(dataset, 500)
+    plt.show()
 
     #create model
     model = get_model(args)
-    print("model:", model)
     # data transform
     transform = get_transform(args)
     # create trainer
-    trainer = MLTrainer(model=model, transform=transform, dataset=dataset)
+    trainer = MLTrainer(args,model=model, transform=transform, dataset=dataset)
     # # train model
     trainer.train()
-    print("train finished")
     # # evaluate model
+    print('evaluate model')
     fore,test_Y=trainer.evaluate(dataset, seq_len=args.seq_len, pred_len=args.pred_len)
     # 画图对比预测结果
-    plot_forecast(fore, test_Y,500)
+    plot_forecast(fore, test_Y,500)#看所有预测结果上的第一个数据点预测的效果
+    plot_all_forecast(fore, test_Y)#看部分预测结果上的predict_len个数据点预测的效果
+    plt.show()

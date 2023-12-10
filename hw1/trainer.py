@@ -4,10 +4,11 @@ from utils.metrics import mse, mae, mape, smape, mase
 
 
 class MLTrainer:
-    def __init__(self, model, transform, dataset):
+    def __init__(self, args,model, transform, dataset):
         self.model = model
         self.transform = transform
         self.dataset = dataset
+        self.period = args.period
 
     def train(self):
         train_X = self.dataset.train_data
@@ -36,17 +37,16 @@ class MLTrainer:
             subseries = np.concatenate(([sliding_window_view(v, seq_len + pred_len) for v in test_data]))
             test_X = subseries[:, :seq_len]
             test_Y = subseries[:, seq_len:]
-        print("evaluating...")
         test_X = self.transform.transform(test_X)
         fore = self.model.forecast(test_X, pred_len=pred_len)
         # test_Y = self.transform.transform(test_Y)
         fore = self.transform.inverse_transform(fore)
 
-        #保留10位小数
-        print('mse:', mse(fore, test_Y).round(10))
-        print('mae:', mae(fore, test_Y).round(10))
-        print('mape:', mape(fore, test_Y).round(10))
-        print('smape:', smape(fore, test_Y).round(10))
-        print('mase:', mase(fore, test_Y).round(10))
+        #保留5位小数
+        print('mse:',mse(fore, test_Y).round(5))
+        print('mae:', mae(fore, test_Y).round(5))
+        print('mape:', mape(fore, test_Y).round(5))
+        print('smape:', smape(fore, test_Y).round(5))
+        print('mase:', mase(fore, test_Y,season=self.period ).round(5))
 
         return fore, test_Y
