@@ -3,8 +3,9 @@ from numpy.lib.stride_tricks import sliding_window_view
 from statsmodels.tsa.seasonal import STL
 from models.base import MLForecastModel
 from utils.distance import euclidean, manhattan, chebyshev,get_distance,preprocess_ts2,preprocess_inv
+from utils.decomposition import get_decompose
 from tqdm import tqdm
-from dataset.data_visualizer import plot_STL
+from dataset.data_visualizer import plot_STL,plot_decompose
 from sklearn.linear_model import LinearRegression
 from datasketch import MinHash, MinHashLSH
 from lshashpy3 import LSHash
@@ -20,7 +21,7 @@ class TsfKNN(MLForecastModel):
         self.msas = args.msas
         self.dia_func= args.distance
         self.distance = get_distance(args)
-        self.decompose = args.decompose  # 是否考虑趋势和季节性
+        self.decompose = get_decompose(args)  # 是否考虑趋势和季节性
         self.period = args.period  # 季节性的值
         self.trend = args.trend #趋势的预测方法
         self.approximate_knn = args.approximate_knn  # 是否使用近似knn
@@ -34,10 +35,10 @@ class TsfKNN(MLForecastModel):
             self.X = X[0, :, -1]
             self.X_slide = sliding_window_view(self.X, self.seq_len + self.pred_len)
             self.X_slide_seq = self.X_slide[:, :self.seq_len]
-            if self.decompose:
-                self.X_stl = STL(self.X, period=self.period).fit()  # 对整个序列进行STL分解
-                plot_STL(self.X_stl,1000)
-                subseries = sliding_window_view(self.X_stl.trend, self.seq_len + self.pred_len)
+            if self.decompose is not None:
+                self.X_trend,self.X_seasonal,self.X_resid = self.decompose(self.X, self.period)  # 使用不同方法对整个序列进行季节性趋势分解
+                # plot_decompose(self.X,self.X_trend,self.X_seasonal,self.X_resid,1000,model=self.decompose.__name__)
+                subseries = sliding_window_view(self.X_trend, self.seq_len + self.pred_len)
                 self.trend_model = LinearRegression()
                 if self.trend == 'AR':
                     trend_X = subseries[:, :self.seq_len]
@@ -53,9 +54,17 @@ class TsfKNN(MLForecastModel):
             self.X_slide = sliding_window_view(self.X, (self.seq_len + self.pred_len,1))
             self.X_slide = self.X_slide.transpose(0,2,1,3)[:,:,:,0]
             self.X_slide_seq = self.X_slide[:, :self.seq_len]
-            # 计算协方差矩阵的逆，用于加速，只计算一次
-            self.inv_covmat = preprocess_inv(self.X)#使用sliding前数据，更合理
-            # self.inv_covmat = preprocess_ts2(self.X_slide_seq)
+            if self.dia_func == 'mahalanobis':
+                # 计算协方差矩阵的逆，用于加速，只计算一次
+                self.inv_covmat = preprocess_inv(self.X)#使用sliding前数据，更合理
+                # self.inv_covmat = preprocess_ts2(self.X_slide_seq)
+            elif self.dia_func == 'weighted_euclidean':
+                weights = np.array(self.weighted)
+                '''
+                权重稀疏时，可以加速计算
+                '''
+                self.nonzero_w_index = weights != 0
+                self.nonzero_weights = weights[self.nonzero_w_index]
 
     def _search(self, x, pred_len):
         # 找到训练集中与x最相似的k个时间序列，然后对这k个时间序列的后pred_len个值求均值，作为预测值
@@ -66,13 +75,7 @@ class TsfKNN(MLForecastModel):
             if self.dia_func == 'mahalanobis':
                 distances = self.distance(x, self.X_slide_seq, self.inv_covmat)
             elif self.dia_func == 'weighted_euclidean':
-                weights = np.array(self.weighted)
-                '''
-                权重稀疏时，可以加速计算
-                '''
-                nonzero_weights_indices = weights != 0
-                weights = weights[nonzero_weights_indices]
-                distances = self.distance(x[..., nonzero_weights_indices], self.X_slide_seq[..., nonzero_weights_indices],weights=weights)
+                distances = self.distance(x[..., self.nonzero_w_index], self.X_slide_seq[..., self.nonzero_w_index],weights=self.nonzero_weights)
             else:
                 distances = self.distance(x, self.X_slide_seq)
             indices_of_smallest_k = np.argsort(distances)[:self.k]
@@ -93,22 +96,19 @@ class TsfKNN(MLForecastModel):
             else:
                 return np.concatenate((x_fore, self._search(x_new,  pred_len - 1)), axis=1)
 
-    def STL_search(self,x_stl_origin, x_stl_trend,x_stl_seasonal , x_stl_resid, seq_len, pred_len):
+    def decompose_search(self, x_stl_trend,x_stl_seasonal , seq_len, pred_len):
         #在STL分解后的序列上进行搜索
 
-        # X_s_origin = sliding_window_view(self.X_stl.observed, seq_len + pred_len)
-        X_s_trend = sliding_window_view(self.X_stl.trend, seq_len + pred_len)
-        X_s_seasonal = sliding_window_view(self.X_stl.seasonal, seq_len + pred_len)
-        X_s_resid = sliding_window_view(self.X_stl.resid, seq_len + pred_len)
+        X_s_trend = sliding_window_view(self.X_trend, seq_len + pred_len)
+        X_s_seasonal = sliding_window_view(self.X_seasonal, seq_len + pred_len)
+        X_s_resid = sliding_window_view(self.X_resid, seq_len + pred_len)
         '''
         优化后的代码，快了3倍，不再需要self._stl_modified_distance函数，但需要self.distance函数支持向量化
         '''
         if self.approximate_knn == False and self.msas == 'MIMO':
             if self.trend == 'STL':
                 distances = self.distance(x_stl_trend+x_stl_seasonal ,X_s_trend[:, :seq_len]+X_s_seasonal[:, :seq_len])
-                # distances = self.distance(x_stl_origin, X_s_origin[:, :seq_len])
                 indices_of_smallest_k = np.argsort(distances)[:self.k]
-                # neighbor_fore = X_s_origin[indices_of_smallest_k, seq_len:]#等价于不适用STL
                 neighbor_fore = X_s_trend[indices_of_smallest_k, seq_len:] + X_s_seasonal[indices_of_smallest_k,seq_len:]
             elif self.trend == 't_s':
                 distance_t = self.distance(x_stl_trend, X_s_trend[:, :seq_len])
@@ -120,15 +120,15 @@ class TsfKNN(MLForecastModel):
                 # distances=self.distance(x_stl_seasonal+ x_stl_resid, X_s_seasonal[:, :seq_len]+X_s_resid[:, :seq_len])#使用季节性和残差计算距离
                 distances = self.distance(x_stl_seasonal, X_s_seasonal[:, :seq_len])  # 使用季节性计算距离
                 indices_of_smallest_k = np.argsort(distances)[:self.k]
-                neighbor_fore = X_s_resid[indices_of_smallest_k, seq_len:] + X_s_seasonal[indices_of_smallest_k,seq_len:]  # 使用季节性+残差作为预测
-                # neighbor_fore = X_s_seasonal[indices_of_smallest_k, seq_len:]  # 使用季节性作为预测
+                # neighbor_fore = X_s_resid[indices_of_smallest_k, seq_len:] + X_s_seasonal[indices_of_smallest_k,seq_len:]  # 使用季节性+残差作为预测
+                neighbor_fore = X_s_seasonal[indices_of_smallest_k, seq_len:]  # 使用季节性作为预测
 
         else:
             '''
             不能只用季节性，因为太小了，lsh没见过这么小的数据，会匹配不到
             总会出现搜不到的情况，注意处理，使用非模糊knn
             '''
-            result = self.lsh_model.query((x_stl_trend + x_stl_seasonal+x_stl_resid).ravel(), num_results=self.k)
+            result = self.lsh_model.query((x_stl_trend + x_stl_seasonal).ravel(), num_results=self.k)
 
             if len(result) <= 1 :
                 #搜不到时，不使用LSH
@@ -136,31 +136,44 @@ class TsfKNN(MLForecastModel):
                 indices_of_smallest_k = np.argsort(distances)[:self.k]
             else:
                 indices_of_smallest_k = [res[0][1] for res in result]
-            neighbor_fore = X_s_resid[indices_of_smallest_k, seq_len:] + X_s_seasonal[indices_of_smallest_k,seq_len:]  # 使用季节性+残差作为预测
-            # neighbor_fore = X_s_seasonal[indices_of_smallest_k, seq_len:]  # 使用季节性作为预测
+            # neighbor_fore = X_s_resid[indices_of_smallest_k, seq_len:] + X_s_seasonal[indices_of_smallest_k,seq_len:]  # 使用季节性+残差作为预测
+            neighbor_fore = X_s_seasonal[indices_of_smallest_k, seq_len:]  # 使用季节性作为预测
         x_fore = np.mean(neighbor_fore, axis=0, keepdims=True)
         return x_fore
 
 
-    def _forecast(self, X: np.ndarray, pred_len) -> np.ndarray:
+    def _forecast(self, X, pred_len) -> np.ndarray:
         fore = []
-        for x in tqdm(X):
-            x = np.expand_dims(x, axis=0)
-            if self.decompose:
-                x_stl = STL(x[0], period=self.period).fit()
-                # 传入STL分解后的序列进行搜索
-                x_fore = self.STL_search(x_stl.observed,x_stl.trend,x_stl.seasonal,x_stl.resid, self.seq_len, pred_len)
+        if self.decompose is not None:
+            #还原测试序列，仅限单变量时使用
+            testX=np.concatenate((X[:,0],X[-1,1:]),axis=0)
+            testX_trend, testX_seasonal, testX_resid = self.decompose(testX, self.period)
+            testX_trend_slide = sliding_window_view(testX_trend, self.seq_len )
+            testX_seasonal_slide = sliding_window_view(testX_seasonal, self.seq_len )
+            testX_resid_slide = sliding_window_view(testX_resid, self.seq_len )
+            for i,x in enumerate(tqdm(X)):
+                # x_trend,x_seasonal,x_resid = self.decompose(x[0],self.period)
+                '''
+                优化为先还原测试序列，再统一STL分解。更合理也更快
+                '''
+                x_trend=testX_trend_slide[i]
+                x_seasonal=testX_seasonal_slide[i]
+                x_resid=testX_resid_slide[i]
+                # plot_decompose(x[0], x_trend, x_seasonal, x_resid, self.seq_len, model=self.decompose.__name__)
+                x_fore = self.decompose_search(x_trend,x_seasonal, self.seq_len, pred_len)
                 if self.trend == 'AR':
-                    x_stl_trend = self.trend_model.predict(x_stl.trend.reshape((1, -1))[:, -self.seq_len:])
-                    x_fore += x_stl_trend.ravel()
+                    x_trend_pred = self.trend_model.predict(x_trend.reshape((1, -1))[:, -self.seq_len:])
+                    x_fore += x_trend_pred.ravel()
                 elif self.trend == 'plain':
-                    self.trend_model.fit(np.arange(self.seq_len).reshape((-1, 1)),x_stl.trend.reshape((-1, 1))[:, -self.seq_len:])
-                    x_stl_trend = self.trend_model.predict(np.arange(self.seq_len, pred_len + self.seq_len).reshape((-1, 1)))
-                    x_fore += x_stl_trend.ravel()
-            else:
+                    self.trend_model.fit(np.arange(self.seq_len).reshape((-1, 1)),x_trend.reshape((-1, 1))[:, -self.seq_len:])
+                    x_trend_pred = self.trend_model.predict(np.arange(self.seq_len, pred_len + self.seq_len).reshape((-1, 1)))
+                    x_fore += x_trend_pred.ravel()
+                fore.append(x_fore)
+        else:
+            for i, x in enumerate(tqdm(X)):
+                x = np.expand_dims(x, axis=0)
                 x_fore = self._search(x,  pred_len)
-            fore.append(x_fore)
+                fore.append(x_fore)
 
         fore = np.array(fore).reshape((-1, pred_len))
-
         return fore
