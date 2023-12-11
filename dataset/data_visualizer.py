@@ -18,8 +18,13 @@ def data_visualize(dataset, t):
     plt.title(dataset.type)
     plt.legend(dataset.data_cols)
 
-    # plt.show()
+    plt.show()
 
+def data_vi(dataset, t):
+    for i in range(dataset.shape[2]):
+        plt.plot(dataset[0, :t, i],label=i)
+    plt.legend()
+    plt.show()
 def plot_forecast(fore, test_Y,t):
     #画图对比预测结果，只画第一个通道的结果
     #fore:预测结果，维度是(163,32)
