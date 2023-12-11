@@ -103,23 +103,28 @@ class Standardization(Transform):
             # 计算每个变量的均值和标准差
             self.mean = np.mean(data, axis=1)
             self.std = np.std(data, axis=1)
+            self.mean_OT=self.mean[0,-1]
+            self.std_OT=self.std[0,-1]
+
         # 检查标准差是否为0
         if np.any(self.std == 0):
             # 对于标准差为0的变量，只减去均值
             norm_data = np.where(self.std == 0, data - self.mean, data)
         else:
-            # 将数据标准化
-            norm_data = (data - self.mean) / self.std
+            #检查data的维度
+            if len(data.shape) == 2:
+                norm_data = (data - self.mean_OT) / self.std_OT
+            else:
+                norm_data = (data - self.mean) / self.std
             #print(np.mean(norm_data, axis=1),np.std(norm_data, axis=1))#明明多变量是第三个维度，但统计的是第二个维度
         return norm_data
 
     def inverse_transform(self, data):
-        # 反标准化数据
-        if self.std is not None:
-            # 对于标准差为0的变量，只加上均值
-            inverse_data = np.where(self.std == 0, data + self.mean, data * self.std + self.mean)
+        #将数据反标准化到原始范围
+        if len(data.shape) == 2:
+            inverse_data = data * self.std_OT + self.mean_OT
         else:
-            inverse_data = data
+            inverse_data = data * self.std + self.mean
         return inverse_data
 
 #实现数据均值归一化的类
