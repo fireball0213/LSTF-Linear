@@ -21,8 +21,14 @@ def data_visualize(dataset, t):
     plt.show()
 
 def data_vi(dataset, t):
-    for i in range(dataset.shape[2]):
-        plt.plot(dataset[0, :t, i],label=i)
+    # for i in range(dataset.shape[2]):
+    #     plt.plot(dataset[0, :t, i],label=i)
+    # plt.plot(dataset[0, :t, 0], label=0)
+    # plt.plot(dataset[0, :t, 1], label=1)
+    plt.plot(dataset[0, :t, 6], label=6)
+    plt.plot(dataset[0, :t, 2], label=2)
+    # plt.plot(dataset[0, :t, 3], label=3)
+    plt.plot(dataset[0, :t, 4], label=4)
     plt.legend()
     plt.show()
 def plot_forecast(fore, test_Y,t):
@@ -60,3 +66,42 @@ def plot_STL(stl,t):
     plt.legend()
     plt.show()
 
+def plot_decompose(x,trend,season,resid,t,model):
+    plt.plot(trend[:t],label='trend',color='red')
+    plt.plot(season[:t],label='season',color='blue')
+    plt.plot(resid[:t],label='resid',color='lightgreen')
+    plt.plot(x[:t],label='original',color='grey')
+    plt.title(model)
+    plt.legend()
+    plt.show()
+
+def plot_fft(freq,fft_values):
+    plt.figure()
+    plt.stem(freq[:len(freq) // 2], np.abs(fft_values)[:len(freq) // 2], 'b', markerfmt=" ", basefmt="-b")
+    plt.title('Frequency Domain Signal')
+    plt.xlabel('Frequency')
+    plt.ylabel('Amplitude')
+    plt.show()
+
+def plot_fft2(data,period,t):
+    freq = np.fft.fftfreq(data.shape[0], d=0.5 / period)  # Frequency bins
+    fft_values = np.fft.fft(data)
+    cutoff_index = np.where(np.abs(freq) > 7)[0]
+    saved_high_freqs = np.copy(fft_values[cutoff_index])
+    fft_values[cutoff_index] = 0
+    inverted_data1 = np.fft.ifft(fft_values)
+    fft_values[cutoff_index] = saved_high_freqs
+    inverted_data2 = np.fft.ifft(fft_values)
+    plt.figure()
+    plt.plot(data[:t], label='original')
+    plt.plot(inverted_data1[:t], label='inverted_data1')
+    plt.plot(inverted_data2[:t], label='inverted_data2')
+    plt.legend()
+    plt.show()
+
+def plot_fft3(data, inverted_data, t):
+    plt.figure()
+    plt.plot(data[:t], label='original')
+    plt.plot(inverted_data[:t], label='inverted_data')
+    plt.legend()
+    plt.show()

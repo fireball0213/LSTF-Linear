@@ -5,8 +5,9 @@ from scipy.special import inv_boxcox
 #引入StandardScaler
 from sklearn.preprocessing import StandardScaler,MinMaxScaler,RobustScaler,MaxAbsScaler
 import matplotlib.pyplot as plt
-
-
+from scipy.fft import fft, ifft
+from dataset.data_visualizer import plot_fft,plot_fft3
+import pywt
 class Transform:
     """
     Preprocess time series
@@ -228,3 +229,123 @@ class MinMaxScaler(Transform):
         inverse_data=self.scaler.inverse_transform(data)
         return inverse_data
 
+
+
+
+#实现数据向频率域的转换，使用scipy中的fft，仅支持单变量
+class FourierTransform:
+    def __init__(self, args):
+        self.args = args
+        self.cutoff_frequency = args.cutoff_frequency  # Define a cutoff frequency
+        self.period = args.period
+        self.is_cut=0#是否进行了截断
+        self.channels_to_denoise = args.channels_to_denoise
+
+    def transform(self, data, update=False):
+        transformed_data = []
+        for channel in self.channels_to_denoise:
+            channel_data = data[0, :, channel]
+            self.freq = np.fft.fftfreq(channel_data.shape[0], d=0.5 / self.period)  # Frequency bins
+            fft_values = np.fft.fft(channel_data)
+            transformed_data.append(fft_values)
+
+            if update:
+                pass
+        return transformed_data
+
+    def cut(self,transformed_data):
+        if self.cutoff_frequency > 0:
+            self.is_cut = 1
+            self.cutoff_index = np.where(np.abs(self.freq) > self.cutoff_frequency)[0]
+            self.saved_high_freqs = []
+            for data in transformed_data:
+                saved_high_freqs_channel = np.copy(data[self.cutoff_index])
+                self.saved_high_freqs.append(saved_high_freqs_channel)
+                data[self.cutoff_index] = 0  # Zero out frequencies beyond the cutoff
+        return transformed_data
+
+    def inverse_transform(self, original_data, denoised_data):
+        reconstructed_data = np.zeros_like(original_data)
+
+        for i, channel in enumerate(self.channels_to_denoise):
+            #返还高频部分
+            # if self.is_cut:
+            #     denoised_data[i][self.cutoff_index] = self.saved_high_freqs[i]
+            channel_inverse = np.fft.ifft(denoised_data[i])
+            reconstructed_data[0, :, channel] = channel_inverse.real
+
+        for channel in range(original_data.shape[2]):
+            if channel not in self.channels_to_denoise:
+                reconstructed_data[0, :, channel] = original_data[0, :, channel]
+
+        return reconstructed_data
+
+
+
+def denoise_fft(data,args):
+    FFT=FourierTransform(args)
+    #清洗频谱，去除高频部分
+    new_data=FFT.transform(data)
+    new_data=FFT.cut(new_data)
+    denoise_data=FFT.inverse_transform(data,new_data)
+    plot_fft3(data[0, :, -1], denoise_data[0, :, -1], 400)
+    return denoise_data
+
+def get_denoise(args):
+    denoise_dict = {
+        'None': None,
+        'fft': denoise_fft,
+        'wavelet': denoise_wavelet,
+    }
+    return denoise_dict[args.freq_denoise]
+
+
+def denoise_wavelet(data, args):
+    WT = WaveletTransform(args)
+    transformed_data = WT.transform(data)
+    denoised_data = WT.cut(transformed_data)
+    denoised_output = WT.inverse_transform(data, denoised_data)
+    return denoised_output
+
+class WaveletTransform:
+    def __init__(self, args):
+        self.args = args
+        self.cutoff_frequency = args.cutoff_frequency  # Define a cutoff frequency
+        self.channels_to_denoise = args.channels_to_denoise
+        self.wavelet = args.wavelet  # Type of wavelet to use
+        self.level = args.level  # Level of decomposition
+        self.is_cut = 0
+        self.saved_coeffs = None
+
+    def transform(self, data):
+        transformed_data = []
+        for channel in self.channels_to_denoise:
+            channel_data = data[0, :, channel]
+            coeffs = pywt.wavedec(channel_data, self.wavelet, level=self.level)
+            transformed_data.append(coeffs)
+        return transformed_data
+
+    def cut(self, transformed_data):
+        if self.cutoff_frequency > 0:
+            self.is_cut = 1
+            self.saved_coeffs = []
+            for coeffs in transformed_data:
+                # Modify coefficients to apply the cutoff
+                modified_coeffs = [coeff if i < self.cutoff_frequency else np.zeros_like(coeff)
+                                   for i, coeff in enumerate(coeffs)]
+                self.saved_coeffs.append(modified_coeffs)
+        return transformed_data
+
+    def inverse_transform(self, original_data, denoised_data):
+        reconstructed_data = np.zeros_like(original_data)
+
+        for i, channel in enumerate(self.channels_to_denoise):
+            # Reconstruct the signal from the denoised coefficients
+            channel_inverse = pywt.waverec(denoised_data[i], self.wavelet)
+            reconstructed_data[0, :, channel] = channel_inverse[:original_data.shape[2]]
+
+        for channel in range(original_data.shape[2]):
+            if channel not in self.channels_to_denoise:
+                reconstructed_data[0, :, channel] = original_data[0, :, channel]
+
+        return reconstructed_data

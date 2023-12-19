@@ -1,8 +1,8 @@
 from models.TsfKNN import TsfKNN
 from models.baselines import ZeroForecast, MeanForecast
 from models.baselines import Autoregression,ExponentialMovingAverage,DoubleExponentialSmoothing,LastValueForecast
-from utils.transforms import IdentityTransform, Normalization, Standardization,MeanNormalization,BoxCox
-from utils.distance import euclidean,manhattan,chebyshev
+from utils.transforms import IdentityTransform, Normalization, Standardization,MeanNormalization,BoxCox,FourierTransform
+
 from trainer import MLTrainer
 from dataset.dataset import get_dataset
 from dataset.data_visualizer import data_visualize,plot_forecast,plot_all_forecast
@@ -28,6 +28,7 @@ def get_args():
     # parser.add_argument('--data_path', type=str, default='./dataset/weather/weather.csv')
 
     parser.add_argument('--period', type=int, default=24, help='period used in TsfKNN and MASE,ETT:24,illness:52')
+    # parser.add_argument('--period', type=int, default=25, help='period used in TsfKNN and MASE,ETT:24,illness:52')
     # parser.add_argument('--period', type=int, default=52, help='period used in TsfKNN and MASE,ETT:24,illness:52')
 
     # parser.add_argument('--dataset', type=str, default='M4', help='dataset type, options: [M4, ETT, Custom]')
@@ -62,29 +63,32 @@ def get_args():
     # parser.add_argument('--msas', type=str, default='recursive', help='options: [MIMO, recursive]')
 
     #TsfKNN define
-    parser.add_argument('--n_neighbors', type=int, default=5, help='number of neighbors used in TsfKNN')
-    # parser.add_argument('--distance_dim', type=str, default='OT', help='distance_dim used in TsfKNN, options: [OT, multi]')
-    parser.add_argument('--distance_dim', type=str, default='multi', help='distance_dim used in TsfKNN, options: [OT, multi]')
+    parser.add_argument('--n_neighbors', type=int, default=9, help='number of neighbors used in TsfKNN')
+    parser.add_argument('--distance_dim', type=str, default='OT', help='distance_dim used in TsfKNN, options: [OT, multi]')
+    # parser.add_argument('--distance_dim', type=str, default='multi', help='distance_dim used in TsfKNN, options: [OT, multi]')
     # parser.add_argument('--distance', type=str, default='euclidean', help='distance used in TsfKNN')
-    # parser.add_argument('--distance', type=str, default='manhattan', help='distance used in TsfKNN')
+    parser.add_argument('--distance', type=str, default='manhattan', help='distance used in TsfKNN')
     # parser.add_argument('--distance', type=str, default='chebyshev', help='distance used in TsfKNN')
     # parser.add_argument('--distance', type=str, default='mahalanobis', help='distance used in TsfKNN')
-    parser.add_argument('--distance', type=str, default='weighted_euclidean', help='distance used in TsfKNN')
+    # parser.add_argument('--distance', type=str, default='weighted_euclidean', help='distance used in TsfKNN')
     # parser.add_argument('--weighted', type=list, default=[1,1,1,1,1,1,1], help='weighted used in weighted_euclidean')
-    parser.add_argument('--weighted', type=list, default=[0, 0, 0, 0, 0, 1, 1],help='weighted used in weighted_euclidean')
+    parser.add_argument('--weighted', type=list, default=[0, 0, 2, 0, 1, 0, 4],help='weighted used in weighted_euclidean')
     parser.add_argument('--approximate_knn', type=bool, default=False, help='approximate_knn used in TsfKNN')
     # parser.add_argument('--approximate_knn', type=bool, default=True, help='approximate_knn used in TsfKNN')
     parser.add_argument('--hash_size', type=int, default=120, help='hash_num used in LSH')  # 影响查询速度，越大越快但越不准
 
 
-    # parser.add_argument('--decompose', type=bool, default=True, help='stl_modified distance used in TsfKNN')
-    parser.add_argument('--decompose', type=bool, default=False, help='stl_modified distance used in TsfKNN')
+    # parser.add_argument('--decompose', type=str, default='None', help='decompose method，options: [STL, MA, Diff, None]')
+    # parser.add_argument('--decompose', type=str, default='STL', help='decompose method，options: [STL, MA, Diff, None]')
+    parser.add_argument('--decompose', type=str, default='MA', help='decompose method，options: [STL, MA, Diff, None]')
+    # parser.add_argument('--decompose', type=str, default='Diff', help='decompose method，options: [STL, MA, Diff, None]')
 
-    # trend predict method distance used in decompose STL
-    # parser.add_argument('--trend', type=str, default='plain', help='options: [plain, AR, STL, t_s]')#只用96个点训练线性模型，预测接下来的32个点
-    # parser.add_argument('--trend', type=str, default='AR', help='options: [plain, AR, STL, t_s]')#用全部trend训练AR模型，再用96个点预测接下来的32个点
-    # parser.add_argument('--trend', type=str, default='STL', help='options: [plain, AR, STL, t_s]')#在STL计算距离时考虑trend，实际效果基本相当于没做STL
-    parser.add_argument('--trend', type=str, default='t_s', help='options: [plain, AR, STL, t_s]')#将趋势和季节分量用两个KNN匹配，再相加预测
+    # trend predict method used in TsfKNN
+    parser.add_argument('--trend', type=str, default='plain', help='options: [plain, AR, t_plus_s, t_s,AR_AR]')#只用96个点训练线性模型，预测接下来的32个点
+    # parser.add_argument('--trend', type=str, default='AR', help='options: [plain, AR, t_plus_s, t_s,AR_AR]')#用全部trend训练AR模型，再用96个点预测接下来的32个点
+    # parser.add_argument('--trend', type=str, default='t_plus_s', help='options: [plain, AR, t_plus_s, t_s,AR_AR]')#在STL计算距离时考虑trend，实际效果基本相当于没做STL
+    # parser.add_argument('--trend', type=str, default='t_s', help='options: [plain, AR, t_plus_s, t_s,AR_AR]')#将趋势和季节分量用两个KNN匹配，再相加预测
+    # parser.add_argument('--trend', type=str, default='AR_AR', help='options: [plain, AR, t_plus_s, t_s,AR_AR]')#将趋势和季节分量用两个AR模型预测，再相加预测
 
 
     # transform define
@@ -94,6 +98,15 @@ def get_args():
     # parser.add_argument('--transform', type=str, default='MeanNormalization')
     # parser.add_argument('--transform', type=str, default='BoxCox')
 
+    #freq denoise define
+    # parser.add_argument('--freq_denoise', type=str, default='None', help='freq_denoise method，options: [None, fft, wavelet]')
+    parser.add_argument('--freq_denoise', type=str, default='fft', help='freq_denoise method，options: [None, fft, wavelet]')
+    # parser.add_argument('--freq_denoise', type=str, default='wavelet', help='freq_denoise method，options: [None, fft, wavelet]')
+    # parser.add_argument('--channels_to_denoise', type=list, default=[0, 1, 2, 3, 4, 5, 6], help='channels_to_denoise used in fft')
+    parser.add_argument('--channels_to_denoise', type=list, default=[6],help='channels_to_denoise used in fft')
+    parser.add_argument('--cutoff_frequency', type=float, default=20, help='cutoff_frequency used in fft')
+    # parser.add_argument('--cutoff_frequency', type=float, default=0, help='cutoff_frequency used in fft')
+    parser.add_argument('--wavelet', type=str, default='db1', help='wavelet used in wavelet')
 
     args = parser.parse_args()
     return args
@@ -119,8 +132,10 @@ def get_transform(args):
         'Standardization': Standardization,
         'MeanNormalization':MeanNormalization,
         'BoxCox':BoxCox,
+        # 'FourierTransform':FourierTransform,
     }
     return transform_dict[args.transform](args)
+
 
 
 

@@ -1,8 +1,9 @@
 import numpy as np
 from numpy.lib.stride_tricks import sliding_window_view
 from utils.metrics import mse, mae, mape, smape, mase
-from dataset.data_visualizer import data_vi
-
+from utils.transforms import get_denoise
+from dataset.data_visualizer import data_vi,plot_fft2
+import matplotlib.pyplot as plt
 class MLTrainer:
     def __init__(self, args,model, transform, dataset):
         self.model = model
@@ -10,11 +11,16 @@ class MLTrainer:
         self.dataset = dataset
         self.period = args.period
         self.distance_dim = args.distance_dim
+        self.freq_denoise = get_denoise(args)
+        self.args=args
 
     def train(self):
         train_X = self.dataset.train_data
+        if self.freq_denoise is not None:#对训练数据的选定列去噪
+            train_X=self.freq_denoise(train_X, self.args)
         t_X = self.transform.transform(train_X,update=True)
-        # data_vi(t_X, 2000)
+        # data_vi(t_X, 200)
+        # plot_fft2(train_X[0, :, -1], self.period,400)
         self.model.fit(t_X)
 
 
