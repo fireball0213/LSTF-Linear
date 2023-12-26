@@ -26,18 +26,22 @@ class MeanForecast(MLForecastModel):
         mean = np.mean(X, axis=-1).reshape(X.shape[0], 1)
         return np.repeat(mean, pred_len, axis=1)
 
-#一个类，直接使用上一个时间步的值作为预测值
+#一个类，直接使用上一个完整周期的值作为预测值
 class LastValueForecast(MLForecastModel):
     def __init__(self, args) -> None:
         super().__init__()
+        self.period = args.period  # 季节性的值
 
     def _fit(self, X: np.ndarray) -> None:
         pass
 
     def _forecast(self, X: np.ndarray, pred_len) -> np.ndarray:
-        a=X[:, -1].reshape(X.shape[0], 1)
-        b=np.repeat(a, pred_len, axis=1)
-        return np.repeat(X[:, -1].reshape(X.shape[0], 1), pred_len, axis=1)
+        # 计算需要重复的周期数
+        repeat_cycles = (pred_len - 1) // self.period + 1
+        # 获取重复周期的起始索引
+        start_idx = -repeat_cycles * self.period
+        # 返回所需长度的预测值
+        return X[:, start_idx:start_idx+pred_len]
 
 
 #一个线性回归的类，实现target列的自回归预测
