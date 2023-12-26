@@ -9,6 +9,7 @@ def get_decompose(args):
     decompose_dict = {
         'STL': STL_decomposition,
         'MA': moving_average,
+        'MA_r':moving_average_with_resid,
         'Diff': differential_decomposition,
         'None': None,
     }
@@ -36,8 +37,18 @@ def moving_average(x, seasonal_period):
     moving_avg = model(x_padded.unsqueeze(0)).squeeze(0)#unsqueeze(0)在第0维增加一个维度，squeeze(0)去掉第0维
     trend = moving_avg.numpy()
 
-    #不算残差
+    #不算残差，即残差为0，都加到季节性中
     seasonal = (x_tensor - moving_avg).numpy()
+
+    residual = x - trend - seasonal
+    return trend, seasonal,residual
+
+def moving_average_with_resid(x, seasonal_period):
+    x_tensor = torch.tensor(x, dtype=torch.float32)
+    x_padded = F.pad(x_tensor.unsqueeze(0), ((seasonal_period - 1) // 2, seasonal_period // 2), mode='reflect').squeeze(0)  # 应用反射填充
+    model = nn.AvgPool1d(kernel_size=seasonal_period, stride=1, padding=0)
+    moving_avg = model(x_padded.unsqueeze(0)).squeeze(0)#unsqueeze(0)在第0维增加一个维度，squeeze(0)去掉第0维
+    trend = moving_avg.numpy()
 
     # 计算残差分量
     seasonal_estimate = x - trend
