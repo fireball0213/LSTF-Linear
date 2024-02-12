@@ -5,10 +5,8 @@ from models.base import MLForecastModel
 from utils.distance import euclidean, manhattan, chebyshev,get_distance,preprocess_ts2,preprocess_inv
 from utils.decomposition import get_decompose
 from tqdm import tqdm
-from dataset.data_visualizer import plot_STL,plot_decompose
+from dataset.data_visualizer import plot_STL,plot_decompose,plot_slide
 from sklearn.linear_model import LinearRegression
-from datasketch import MinHash, MinHashLSH
-from lshashpy3 import LSHash
 import matplotlib.pyplot as plt
 from utils.metrics import mse, mae, mape, smape, mase
 import time
@@ -34,7 +32,7 @@ class TsfKNN(MLForecastModel):
             self.X_slide_seq = self.X_slide[:, :self.seq_len]
             if self.decompose is not None:
                 self.X_trend,self.X_seasonal,self.X_resid = self.decompose(self.X, self.period)  # 使用不同方法对整个序列进行季节性趋势分解
-                # plot_decompose(self.X,self.X_trend,self.X_seasonal,self.X_resid,1000,model=self.decompose.__name__)
+                # plot_decompose(self.X,self.X_trend,self.X_seasonal,self.X_resid,0,300,model=self.decompose.__name__)
 
                 self.trend_model = LinearRegression()
                 self.seasonal_model = LinearRegression()
@@ -54,9 +52,7 @@ class TsfKNN(MLForecastModel):
             self.X_slide = self.X_slide.transpose(0,2,1,3)[:,:,:,0]
             self.X_slide_seq = self.X_slide[:, :self.seq_len]
             if self.dia_func == 'mahalanobis':
-                # 计算协方差矩阵的逆，用于加速，只计算一次
                 self.inv_covmat = preprocess_inv(self.X)#使用sliding前数据，更合理
-                # self.inv_covmat = preprocess_ts2(self.X_slide_seq)
             elif self.dia_func == 'weighted_euclidean':
                 weights = np.array(self.weighted)
                 '''
@@ -112,14 +108,15 @@ class TsfKNN(MLForecastModel):
             trend_fore = self.trend_model.predict(x_stl_trend.reshape((1, -1))[:, -self.seq_len:])
             seasonal_fore = np.mean(neighbor_fore, axis=0, keepdims=True)
         elif self.trend == 'AR_AR':
-            trend_fore = self.trend_model.predict(x_stl_trend.reshape((1, -1))[:, -self.seq_len:])
+            x=x_stl_trend.reshape((1, -1))[:, -self.seq_len:]
+            trend_fore = self.trend_model.predict(x)
             seasonal_fore = self.seasonal_model.predict(x_stl_seasonal.reshape((1, -1))[:, -self.seq_len:])
         else:
             distances = self.distance(x_stl_seasonal, X_s_seasonal[:, :self.seq_len])  # 使用季节性计算距离
             indices_of_smallest_k = np.argsort(distances)[:self.k]
             neighbor_fore = X_s_seasonal[indices_of_smallest_k, self.seq_len:]  # 使用季节性作为预测
             self.trend_model.fit(np.arange(self.seq_len).reshape((-1, 1)), x_stl_trend.reshape((-1, 1))[:, -self.seq_len:])
-            trend_fore = self.trend_model.predict(np.arange(self.seq_len, pred_len + self.seq_len).reshape((-1, 1)))
+            trend_fore = self.trend_model.predict(np.arange(self.seq_len, pred_len + self.seq_len).reshape((-1, 1))).reshape(1,-1)
             seasonal_fore = np.mean(neighbor_fore, axis=0, keepdims=True)
         return trend_fore,seasonal_fore
 
@@ -141,7 +138,7 @@ class TsfKNN(MLForecastModel):
                 x_trend=testX_trend_slide[i]
                 x_seasonal=testX_seasonal_slide[i]
                 x_resid=testX_resid_slide[i]
-                # plot_decompose(x[0], x_trend, x_seasonal, x_resid, self.seq_len, model=self.decompose.__name__)
+                # plot_decompose(x, x_trend, x_seasonal, x_resid, self.seq_len, model=self.decompose.__name__)
                 trend_fore,seasonal_fore = self.decompose_search(x_trend,x_seasonal,  pred_len)
                 x_fore = trend_fore+seasonal_fore
 

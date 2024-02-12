@@ -288,7 +288,7 @@ def denoise_fft(data,args):
     new_data=FFT.transform(data)
     new_data=FFT.cut(new_data)
     denoise_data=FFT.inverse_transform(data,new_data)
-    plot_fft3(data[0, :, -1], denoise_data[0, :, -1], 400)
+    plot_fft3(data[0, :, -1], denoise_data[0, :, -1], 400,title=args.cutoff_frequency)
     return denoise_data
 
 def get_denoise(args):
@@ -313,7 +313,7 @@ class WaveletTransform:
         self.cutoff_frequency = args.cutoff_frequency  # Define a cutoff frequency
         self.channels_to_denoise = args.channels_to_denoise
         self.wavelet = args.wavelet  # Type of wavelet to use
-        self.level = args.level  # Level of decomposition
+        # self.level = args.level  # Level of decomposition
         self.is_cut = 0
         self.saved_coeffs = None
 
@@ -321,7 +321,7 @@ class WaveletTransform:
         transformed_data = []
         for channel in self.channels_to_denoise:
             channel_data = data[0, :, channel]
-            coeffs = pywt.wavedec(channel_data, self.wavelet, level=self.level)
+            coeffs = pywt.wavedec(channel_data, self.wavelet, level=1)#level=1表示只分解一次
             transformed_data.append(coeffs)
         return transformed_data
 

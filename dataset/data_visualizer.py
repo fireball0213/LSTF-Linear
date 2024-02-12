@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import random
+import torch
 def data_visualize(dataset, t):
     """
     Choose t continous time points in data and visualize the chosen points. Note that some datasets have more than one
@@ -39,19 +40,54 @@ def plot_forecast(fore, test_Y,t):
     plt.plot(test_Y[:, 0][:t], label='true')
     plt.legend()
     # plt.show()
-
-def plot_all_forecast(fore, test_Y):
-
-    # lst=random.sample(range(0,fore.shape[0]),25)#在range(0,fore.shape[0])中随机选取9个数
-    index=random.sample(range(0,fore.shape[0]),1)[0]
-    lst=list(range(index,index+25))
-    # print(lst)
-    #创建3*3的画布，画出9个子图，每个子图对比lst中的一个预测结果和真实值
-    fig, axes = plt.subplots(5, 5, figsize=(12, 12))
+def plot_slide(x,t):
+    plt.plot(x[:, 0][:t],label='original')
+    plt.legend()
+    plt.show()
+def plot_day_forecast(fore, test_Y):
+    '''
+    创建Plot_length*Plot_length的画布,画出Plot_num个子图
+    每个子图对比一段长为pred_len的预测结果和真实值，子图间相隔Step个时间点
+    '''
+    Plot_length=6
+    Plot_width=4
+    Plot_num=Plot_length*Plot_width
+    Step=4
+    index=random.sample(range(0,fore.shape[0]-Plot_num*Step),1)[0]
+    lst=list(range(index,index+Plot_num*Step,Step))
+    fig, axes = plt.subplots(Plot_width, Plot_length, figsize=(12, 12))
     for i, ax in enumerate(axes.flat):
         ax.plot(fore[lst[i],: ], label='forecast')
         ax.plot(test_Y[lst[i],: ], label='true')
-        ax.legend()
+        ax.set_title(str(lst[i]))
+        if i == 0:  # 只在第一个子图上添加图例
+            ax.legend()
+    #使图像title显示在最上面一行
+
+    # plt.title("forecast results"+str(index)+"-"+str(index+Plot_num*Step))
+    plt.tight_layout()
+    plt.plot()
+    # plt.show()
+
+def plot_random_forecast(fore, test_Y):
+    '''
+    创建Plot_length*Plot_length的画布,画出Plot_num个子图
+    每个子图对比一段长为pred_len的预测结果和真实值，子图间相隔Step个时间点
+    '''
+    Plot_length=6
+    Plot_num=Plot_length**2
+    lst=random.sample(range(0,fore.shape[0]),Plot_num)
+    lst.sort()
+    fig, axes = plt.subplots(Plot_length, Plot_length, figsize=(12, 12))
+    for i, ax in enumerate(axes.flat):
+        ax.plot(fore[lst[i],: ], label='forecast')
+        ax.plot(test_Y[lst[i],: ], label='true')
+        ax.set_title(str(lst[i]))
+        if i == 0:  # 只在第一个子图上添加图例
+            ax.legend()
+    # plt.title("forecast results : random view")
+    #使图像title不重叠
+    plt.tight_layout()
     plt.plot()
     # plt.show()
 
@@ -66,14 +102,59 @@ def plot_STL(stl,t):
     plt.legend()
     plt.show()
 
-def plot_decompose(x,trend,season,resid,t,model):
-    plt.plot(trend[:t],label='trend',color='red')
-    plt.plot(season[:t],label='season',color='blue')
-    plt.plot(resid[:t],label='resid',color='lightgreen')
-    plt.plot(x[:t],label='original',color='grey')
+def plot_decompose(x,trend,season,resid,t1,t2,model):
+    #检查是否是tensor，如果是，转移到cpu，然后转为numpy
+    if isinstance(x,torch.Tensor):
+        x=x.cpu().numpy()
+        trend=trend.cpu().numpy()
+        season=season.cpu().numpy()
+        resid=resid.cpu().numpy()
+    #如果x是三维的，去掉最后一个维度
+    if len(x.shape)==3:
+        x=x[:,:,0]
+    plt.plot(trend[t1:t2],label='trend',color='red')
+    plt.plot(season[t1:t2],label='season',color='blue')
+    plt.plot(resid[t1:t2],label='resid',color='lightgreen')
+    plt.plot(x[t1:t2],label='original',color='grey')
     plt.title(model)
     plt.legend()
     plt.show()
+
+def plot_decompose_batch(x,trend,season,resid,model):
+    '''
+    x:[batch_size,seq_len,channels]
+    '''
+    #随机选择4个batch的seq_len个时间点画图
+    batch_size=x.shape[0]
+    seq_len=x.shape[1]
+    channels=x.shape[2]
+    #移到cpu
+    x=x.cpu().numpy()
+    trend=trend.cpu().numpy()
+    season=season.cpu().numpy()
+    resid=resid.cpu().numpy()
+    #画成4个子图
+    fig, axes = plt.subplots(2, 2, figsize=(12, 12))
+    for i, ax in enumerate(axes.flat):
+        batch=random.randint(0,batch_size-1)
+        channel=0
+        # t=random.randint(0,seq_len-1)
+        ax.plot(trend[batch,:,channel],label='trend',color='red')
+        ax.plot(season[batch,:,channel],label='season',color='blue')
+        ax.plot(resid[batch,:,channel],label='resid',color='lightgreen')
+        ax.plot(x[batch,:,channel],label='original',color='grey')
+        ax.set_title(model+'_batch'+str(batch)+'_channel'+str(channel))
+        if i == 0:  # 只在第一个子图上添加图例
+            ax.legend()
+    plt.tight_layout()
+    plt.show()
+    # plt.plot(trend,label='trend',color='red')
+    # plt.plot(season,label='season',color='blue')
+    # plt.plot(resid,label='resid',color='lightgreen')
+    # plt.plot(x,label='original',color='grey')
+    # plt.title(model)
+    # plt.legend()
+    # plt.show()
 
 def plot_fft(freq,fft_values):
     plt.figure()
@@ -84,6 +165,9 @@ def plot_fft(freq,fft_values):
     plt.show()
 
 def plot_fft2(data,period,t):
+    '''
+    验证频域去噪还原后无损
+    '''
     freq = np.fft.fftfreq(data.shape[0], d=0.5 / period)  # Frequency bins
     fft_values = np.fft.fft(data)
     cutoff_index = np.where(np.abs(freq) > 7)[0]
@@ -99,9 +183,13 @@ def plot_fft2(data,period,t):
     plt.legend()
     plt.show()
 
-def plot_fft3(data, inverted_data, t):
+def plot_fft3(data, inverted_data, t,title):
+    '''
+    验证频域去噪效果
+    '''
     plt.figure()
     plt.plot(data[:t], label='original')
     plt.plot(inverted_data[:t], label='inverted_data')
+    plt.title('Frequency cut='+str(title))
     plt.legend()
     plt.show()

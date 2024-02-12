@@ -5,7 +5,7 @@ from scipy.spatial.distance import pdist, squareform
 import time
 
 from scipy.spatial.distance import cdist
-from dtaidistance import dtw
+
 def get_distance(args):
     distance_dict = {
         'euclidean': euclidean,
