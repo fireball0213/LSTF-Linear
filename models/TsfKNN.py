@@ -27,7 +27,8 @@ class TsfKNN(MLForecastModel):
 
     def _fit(self, X: np.ndarray) -> None:
         if self.distance_dim == 'OT':
-            self.X = X[0, :, -1]
+            # self.X = X[0, :, -1]
+            self.X = X[:, 0]
             self.X_slide = sliding_window_view(self.X, self.seq_len + self.pred_len)
             self.X_slide_seq = self.X_slide[:, :self.seq_len]
             if self.decompose is not None:
@@ -121,7 +122,7 @@ class TsfKNN(MLForecastModel):
         return trend_fore,seasonal_fore
 
 
-    def _forecast(self, X, pred_len) -> np.ndarray:
+    def _forecast(self, X) -> np.ndarray:
         fore = []
         if self.decompose is not None:
             #还原测试序列，仅限单变量时使用
@@ -139,7 +140,7 @@ class TsfKNN(MLForecastModel):
                 x_seasonal=testX_seasonal_slide[i]
                 x_resid=testX_resid_slide[i]
                 # plot_decompose(x, x_trend, x_seasonal, x_resid, self.seq_len, model=self.decompose.__name__)
-                trend_fore,seasonal_fore = self.decompose_search(x_trend,x_seasonal,  pred_len)
+                trend_fore,seasonal_fore = self.decompose_search(x_trend,x_seasonal,  self.pred_len)
                 x_fore = trend_fore+seasonal_fore
 
                 #可画图单独查看分量预测效果
@@ -150,8 +151,8 @@ class TsfKNN(MLForecastModel):
         else:
             for i, x in enumerate(tqdm(X)):
                 x = np.expand_dims(x, axis=0)
-                x_fore = self._search(x,  pred_len)
+                x_fore = self._search(x,  self.pred_len)
                 fore.append(x_fore)
 
-        fore = np.array(fore).reshape((-1, pred_len))
+        fore = np.array(fore).reshape((-1, self.pred_len))
         return fore

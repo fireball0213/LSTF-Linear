@@ -19,12 +19,10 @@ WINDOW = 24
 
 
 class Dataset_ETT_hour(Dataset):
-    def __init__(self,args, flag='train', size=None,features='S',
+    def __init__(self,args, flag='train',
                 scale=True, inverse=False, timeenc=0):
         """
         :param flag: ['train','val','test']
-        :param size:  [seq_len,  pred_len]
-        :param features:控制目标列
         :param data_path: ['ETTh1.csv','ETTh2.csv','ETTm1.csv','ETTm1.csv']
         :param target:控制目标列
         :param scale:归一化，默认True
@@ -33,23 +31,18 @@ class Dataset_ETT_hour(Dataset):
         :param freq:暂用h
         """
 
-        # info
-        if size == None:
-            self.seq_len = 24 * 4 * 4
-            # self.label_len = 24 * 4
-            self.pred_len = 24 * 4
-        else:
-            self.seq_len = size[0]
-            # self.label_len = size[1]
-            self.pred_len = size[-1]
+        self.seq_len = args.seq_len
+        self.pred_len = args.pred_len
         # init
         assert flag in ['train', 'test', 'val']
         type_map = {'train': 0, 'val': 1, 'test': 2}
         self.set_type = type_map[flag]
 
-        self.features = features
         self.target = args.target
         self.scale = scale
+        self.ratio_train = args.ratio_train
+        self.ratio_val = args.ratio_val
+        self.ratio_test = args.ratio_test
         self.flag = flag
         self.inverse = inverse
         self.timeenc = timeenc
@@ -57,46 +50,93 @@ class Dataset_ETT_hour(Dataset):
         self.window = args.period
         self.root_path = args.data_path
         self.decompose = get_decompose(args)
+        self.period = args.period
+        self.scaler = StandardScaler()
+        self.args = args
+        self.residual=args.residual
         self.__read_data__()
 
+    # def __read_data__(self):
+    #     df_raw = pd.read_csv(self.root_path)
+    #
+    #     #用于划分
+    #     border1s = [0, 12 * 30 * 24 - self.seq_len, 12 * 30 * 24 + 4 * 30 * 24 - self.seq_len]
+    #     border2s = [12 * 30 * 24, 12 * 30 * 24 + 4 * 30 * 24, 12 * 30 * 24 + 8 * 30 * 24]
+    #     border1 = border1s[self.set_type]
+    #     border2 = border2s[self.set_type]
+    #
+    #     if self.features == 'M' or self.features == 'MS':
+    #         cols_data = df_raw.columns[1:]
+    #         df_data = df_raw[cols_data]
+    #     elif self.features == 'S':
+    #         df_data = df_raw[[self.target]]
+    #
+    #     if self.scale:
+    #         if self.flag == 'train':
+    #             train_data = df_data[border1s[0]:border2s[0]]
+    #             self.scaler.fit(train_data.values)
+    #         data = self.scaler.transform(df_data.values)
+    #     else:
+    #         data = df_data.values
+    #
+    #     df_stamp = df_raw[['date']][border1:border2]
+    #     df_stamp['date'] = pd.to_datetime(df_stamp.date)
+    #     self.data_stamp = time_features(df_stamp, timeenc=self.timeenc, freq=self.freq)#月-日-星期-小时
+    #     self.data_one_hot = get_one_hot_feature(self.data_stamp, freq=self.freq)
+    #     self.data_x = data[border1:border2]
+    #
+    #     self.data_y = data[border1:border2]
+    #
+    #     #数据分解
+    #     self.trend, self.seasonal, self.resid = self.decompose(self.data_x , self.window)
+    #     plot_decompose(self.data_x, self.trend, self.seasonal, self.resid, 0, 1000,'whole decompose_'+str(self.flag))
+
     def __read_data__(self):
-        self.scaler = StandardScaler()
         df_raw = pd.read_csv(self.root_path)
 
-        #用于划分
-        border1s = [0, 12 * 30 * 24 - self.seq_len, 12 * 30 * 24 + 4 * 30 * 24 - self.seq_len]
-        border2s = [12 * 30 * 24, 12 * 30 * 24 + 4 * 30 * 24, 12 * 30 * 24 + 8 * 30 * 24]
-        border1 = border1s[self.set_type]
-        border2 = border2s[self.set_type]
-
-        if self.features == 'M' or self.features == 'MS':
+        if self.target=='Multi':
             cols_data = df_raw.columns[1:]
             df_data = df_raw[cols_data]
-        elif self.features == 'S':
+            self.channel = self.args.channels
+        else :
             df_data = df_raw[[self.target]]
+            self.channel = 1
 
+        # 数据缩放
         if self.scale:
-            train_data = df_data[border1s[0]:border2s[0]]
-            self.scaler.fit(train_data.values)
+            if self.flag == 'train':
+                self.scaler.fit(df_data.values)
             data = self.scaler.transform(df_data.values)
         else:
             data = df_data.values
 
-        df_stamp = df_raw[['date']][border1:border2]
+        # 计算训练、验证、测试数据的分割点
+        total_size = len(data)
+        train_end = int(total_size * self.ratio_train)
+        val_end = train_end + int(total_size * self.ratio_val)
+
+        # 根据flag切分数据
+        if self.flag == 'train':
+            start, end = 0, train_end
+        elif self.flag == 'val':
+            start, end = train_end, val_end
+        else:  # test
+            start, end = val_end, total_size
+
+        self.data_x = data[start:end]
+        self.data_y = self.data_x
+        df_stamp = df_raw[['date']][start:end]
+
         df_stamp['date'] = pd.to_datetime(df_stamp.date)
         self.data_stamp = time_features(df_stamp, timeenc=self.timeenc, freq=self.freq)#月-日-星期-小时
         self.data_one_hot = get_one_hot_feature(self.data_stamp, freq=self.freq)
-        self.data_x = data[border1:border2]
-        # if self.inverse:
-        #     self.data_y = df_data.values[border1:border2]
-        # else:
-        #     self.data_y = data[border1:border2]
-        self.data_y = data[border1:border2]
 
-        #数据分解
-        self.trend, self.seasonal, self.resid = self.decompose(self.data_x , self.window)
-        plot_decompose(self.data_x, self.trend, self.seasonal, self.resid, 0, 1000,'whole decompose_'+str(self.flag))
+        #TODO：add SPIRIT
 
+        # 分解
+        if self.decompose is not None:
+            self.trend, self.seasonal, self.resid = self.decompose(self.data_x, self.period,self.residual)
+            # plot_decompose(self.data_x, self.trend, self.seasonal, self.resid, 0, 1000, 'whole decompose_' + str(self.flag))
 
     def __getitem__(self, index):
         s_begin = index
@@ -119,12 +159,12 @@ class Dataset_ETT_hour(Dataset):
         seq_x_mark = self.data_one_hot[s_begin:s_end:self.window].reshape(-1, 19)
         seq_y_mark = self.data_one_hot[r_begin:r_end:self.window].reshape(-1, 19)
 
-        seq_x_trend = self.trend[s_begin:s_end]
-        seq_x_seasonal = self.seasonal[s_begin:s_end]
-        seq_x_resid = self.resid[s_begin:s_end]
-        seq_y_trend = self.trend[r_begin:r_end]
-        seq_y_seasonal = self.seasonal[r_begin:r_end]
-        seq_y_resid = self.resid[r_begin:r_end]
+        seq_x_trend = self.trend[s_begin:s_end].reshape(-1,self.channel)
+        seq_x_seasonal = self.seasonal[s_begin:s_end].reshape(-1,self.channel)
+        seq_x_resid = self.resid[s_begin:s_end].reshape(-1,self.channel)
+        seq_y_trend = self.trend[r_begin:r_end].reshape(-1,self.channel)
+        seq_y_seasonal = self.seasonal[r_begin:r_end].reshape(-1,self.channel)
+        seq_y_resid = self.resid[r_begin:r_end].reshape(-1,self.channel)
 
 
         return seq_x, seq_y, seq_x_mark, seq_y_mark, seq_x_trend, seq_x_seasonal, seq_x_resid, seq_y_trend, seq_y_seasonal, seq_y_resid

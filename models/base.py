@@ -17,15 +17,15 @@ class MLForecastModel:
     def _fit(self, X: np.ndarray):
         raise NotImplementedError
 
-    def _forecast(self, X: np.ndarray, pred_len) -> np.ndarray:
+    def _forecast(self, X: np.ndarray) -> np.ndarray:
         raise NotImplementedError
 
-    def forecast(self, X: np.ndarray, pred_len) -> np.ndarray:
+    def forecast(self, X: np.ndarray) -> np.ndarray:
         """
         :param X: history timesteps
         :return: predicted future timesteps
         """
         if not self.fitted:
             raise ValueError("Model has not been trained.")
-        pred = self._forecast(X, pred_len)
+        pred = self._forecast(X)
         return pred

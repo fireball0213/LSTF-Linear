@@ -49,6 +49,9 @@ def plot_day_forecast(fore, test_Y):
     创建Plot_length*Plot_length的画布,画出Plot_num个子图
     每个子图对比一段长为pred_len的预测结果和真实值，子图间相隔Step个时间点
     '''
+    if len(fore.shape)==3:
+        fore=fore[:,:,-1]
+        test_Y=test_Y[:,:,-1]
     Plot_length=6
     Plot_width=4
     Plot_num=Plot_length*Plot_width
@@ -74,6 +77,9 @@ def plot_random_forecast(fore, test_Y):
     创建Plot_length*Plot_length的画布,画出Plot_num个子图
     每个子图对比一段长为pred_len的预测结果和真实值，子图间相隔Step个时间点
     '''
+    if len(fore.shape)==3:
+        fore=fore[:,:,-1]
+        test_Y=test_Y[:,:,-1]
     Plot_length=6
     Plot_num=Plot_length**2
     lst=random.sample(range(0,fore.shape[0]),Plot_num)
@@ -112,10 +118,10 @@ def plot_decompose(x,trend,season,resid,t1,t2,model):
     #如果x是三维的，去掉最后一个维度
     if len(x.shape)==3:
         x=x[:,:,0]
-    plt.plot(trend[t1:t2],label='trend',color='red')
-    plt.plot(season[t1:t2],label='season',color='blue')
-    plt.plot(resid[t1:t2],label='resid',color='lightgreen')
-    plt.plot(x[t1:t2],label='original',color='grey')
+    plt.plot(trend[t1:t2,-1],label='trend',color='red')
+    plt.plot(season[t1:t2,-1],label='season',color='blue')
+    plt.plot(resid[t1:t2,-1],label='resid',color='lightgreen')
+    plt.plot(x[t1:t2,-1],label='original',color='grey')
     plt.title(model)
     plt.legend()
     plt.show()

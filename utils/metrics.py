@@ -37,3 +37,12 @@ def mase(predict, target, season=24):
     return mae(target, predict) / mae(target[season:], naive_forecast(target, season))
 
 
+def evaluate_metrics(fore, test_Y, args,flag=None):
+    print(flag,end=" ")
+    # 保留5位小数
+    # print('mse:', mse(fore, test_Y).round(5),end=" ")
+    print('mae:', mae(fore, test_Y).round(5),end=" ")
+    # print('mape:', mape(fore, test_Y).round(5),end=" ")
+    print('smape:', smape(fore, test_Y).round(5),end=" ")
+    print('mase:', mase(fore, test_Y, season=args.period).round(5),end=" ")
+    print()
