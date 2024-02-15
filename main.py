@@ -218,27 +218,39 @@ if __name__ == '__main__':
     # args.model = 'Linear_NN'
     # args.model = 'ThetaMethod'
 
-    # args.trend_model = 'Autoregression'
-    # args.seasonal_model = 'Autoregression'
-    args.trend_model = 'NLinear'
-    args.seasonal_model = 'NLinear'
+    args.trend_model = 'Autoregression'
+    args.seasonal_model = 'Autoregression'
+    # args.trend_model = 'NLinear'
+    # args.seasonal_model = 'NLinear'
 
     args.individual = True
     args.target = 'Multi'
     # args.target = 'OT'
-
-    for args.model,args.decompose_based in [('DLinear',False)]:#,('NLinear',True)
+    args.batch_size = 1
+    for args.model,args.decompose_based in [('DLinear',False),]:#,('NLinear',True)
         for args.individual in [True]:#, False
             print()
             end='\n'
+            end=', '
             print("Model:",args.model,end=end)
             print("individual =",args.individual,end=end)
-            for args.decompose in ['STL']:#,'X11','MA'
+            for args.decompose in ['MA']:#,'STL','X11'
                 for args.residual in [True]:#,False
                     print("Decompose : ",args.decompose,end=end)
                     print('resid =', args.residual,end=end)
-                    for args.pred_len in [96, 192, 336, 720]:
+                    for args.pred_len in [96]:#, 192, 336, 720
                         print('pred_len =',args.pred_len,end='')
-                        for args.use_spirit in [False]:#True,
-                            # print('use_spirit =',args.use_spirit)
+                        for args.batch_size in [64]:  # ,32, 16, 8, 4, 2, 1
+                            print('batch_size =',args.batch_size,end=' ')
+                            for args.use_spirit in [True]:#,False
+                                print('use_spirit =',args.use_spirit)
+                                for args.rank in [7,6]:#
+                                    for args.spirit_k in [1]:
+                                        for args.spirit_alpha in [0.98]:#0.99,
+                                            print('rank =',args.rank,end=' ')
+                                            print('spirit_k =',args.spirit_k,end=' ')
+                                            print('spirit_alpha =',args.spirit_alpha,end=' ')
+                                            xxx(args,fix_seed)
+                            args.use_spirit = False
+                            print('use_spirit =',args.use_spirit,end=' ')
                             xxx(args,fix_seed)

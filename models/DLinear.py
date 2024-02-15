@@ -9,6 +9,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from dataset.data_visualizer import plot_STL,plot_decompose_batch,plot_decompose
+import time
 
 class BaseLinearModel(nn.Module):
     def __init__(self, args):
@@ -21,24 +22,27 @@ class BaseLinearModel(nn.Module):
         self.optimizer = optim.Adam(self.parameters(), lr=0.001)
         self.criterion = nn.MSELoss()
         self.decompose_all = args.decompose_all
+        if args.use_spirit:
+            self.channels = args.rank
 
     def setup_layers(self):
         # 定义线性层，具体实现由子类完成
         pass
 
-    def forward(self, x):
+    def forward(self, x, x_trend=None, x_seasonal=None,x_res=None):
         # 前向传播，具体实现由子类完成
         pass
 
     def fit(self, x, y,x_trend=None, x_seasonal=None,x_res=None):
         x ,y= x.float(), y.float()
-        if self.decompose_all:
-            x_trend, x_seasonal,x_res= x_trend.float(), x_seasonal.float(),x_res.float()
-        self.train()
-        self.optimizer.zero_grad()
         if self.decompose_all:#使用全部数据的分解结果
+            x_trend, x_seasonal,x_res= x_trend.float(), x_seasonal.float(),x_res.float()
+            self.train()
+            self.optimizer.zero_grad()
             outputs = self.forward(x,x_trend, x_seasonal,x_res)
         else:#使用局部数据的分解结果
+            self.train()
+            self.optimizer.zero_grad()
             outputs = self.forward(x)
         loss = self.calculate_loss(outputs, y)
         loss.backward()
@@ -100,6 +104,7 @@ class DLinear(BaseLinearModel):
         self.period = args.period  # 季节性的值
         self.residual = args.residual  # 是否考虑残差
 
+
     def setup_layers(self):
         input_features = self.seq_len * self.channels  # 调整输入特征数以匹配多通道数据
         output_features = self.pred_len * self.channels  # 输出特征数也需要调整以保持通道信息
@@ -113,14 +118,16 @@ class DLinear(BaseLinearModel):
 
     def forward(self, x, x_trend=None, x_seasonal=None,x_res=None):
 
-        if self.decompose_all:
+        if self.decompose_all:#使用全部数据的分解结果
             trend, seasonal ,resid= x_trend.float(), x_seasonal.float(),x_res.float()
-        else:
+        else:#使用局部数据的分解结果
             trend, seasonal, resid = self.decompose(x, self.period,self.residual)
             #如果trend是tensor
-            if isinstance(trend,torch.Tensor):
-                trend = trend.float()
-                seasonal = seasonal.float()
+            if not isinstance(trend,torch.Tensor):
+                trend = torch.tensor(trend, dtype=x.dtype, device=x.device)
+                seasonal = torch.tensor(seasonal, dtype=x.dtype, device=x.device)
+            trend = trend.float()
+            seasonal = seasonal.float()
             # plot_decompose_batch(x, trend, seasonal, resid,  'DLinear')
 
         if self.individual:

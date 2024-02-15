@@ -11,12 +11,13 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 from dataset.data_tools import  time_features, get_one_hot, get_one_hot_feature
 from sklearn.preprocessing import StandardScaler
-from dataset.data_visualizer import plot_decompose
+from dataset.data_visualizer import plot_decompose,plot_spirit
 import warnings
 from utils.decomposition import get_decompose
 warnings.filterwarnings('ignore')
 from models.SPIRIT import SPIRITModel
 WINDOW = 24
+import matplotlib.pyplot as plt
 
 
 class Dataset_ETT_hour(Dataset):
@@ -128,6 +129,7 @@ class Dataset_ETT_hour(Dataset):
 
         self.data_x = data[start:end]
         self.data_y = self.data_x
+        self.data_z = self.data_x
 
         df_stamp = df_raw[['date']][start:end]
         df_stamp['date'] = pd.to_datetime(df_stamp.date)
@@ -135,15 +137,21 @@ class Dataset_ETT_hour(Dataset):
         self.data_one_hot = get_one_hot_feature(self.data_stamp, freq=self.freq)
 
         if self.args.use_spirit:
-            spirit = SPIRITModel(self.args)
-            x_transformed = spirit.fit_transform(self.data_x)
+            self.spirit = SPIRITModel(self.args)
+            self.channel=self.args.rank
+            if self.flag == 'train':
+                x_transformed = self.spirit.fit_transform(self.data_train)
+            else:
+                _=self.spirit.fit_transform(self.data_train)
+                x_transformed = self.spirit.transform(self.data_x)
             self.data_x = x_transformed
-            self.data_y = self.data_x
+            self.data_y = self.data_x#在spirit变化后的数据上评估
+            plot_spirit(self.spirit, self.data_train, self.data_test,self.data_x)
 
         # 分解
         if self.decompose is not None:
             self.trend, self.seasonal, self.resid = self.decompose(self.data_x, self.period,self.residual)
-            self.y_trend, self.y_seasonal, self.y_resid = self.decompose(self.data_y, self.period,self.residual)
+            # self.y_trend, self.y_seasonal, self.y_resid = self.decompose(self.data_y, self.period,self.residual)
             # plot_decompose(self.data_x, self.trend, self.seasonal, self.resid, 0, 1000, 'whole decompose_' + str(self.flag))
 
     def __getitem__(self, index):
@@ -154,6 +162,7 @@ class Dataset_ETT_hour(Dataset):
 
         seq_x = self.data_x[s_begin:s_end]
         seq_y = self.data_y[r_begin:r_end]
+        seq_z= self.data_z[r_begin:r_end]
         # seq_x_mark = self.data_stamp[s_begin:s_end].reshape(-1, self.window, 4)
         # seq_y_mark = self.data_stamp[r_begin:r_end].reshape(-1, self.window, 4)
         seq_x_mark = self.data_one_hot[s_begin:s_end:self.window].reshape(-1, 19)
@@ -163,18 +172,24 @@ class Dataset_ETT_hour(Dataset):
         seq_x_seasonal = self.seasonal[s_begin:s_end].reshape(-1,self.channel)
         seq_x_resid = self.resid[s_begin:s_end].reshape(-1,self.channel)
 
-        seq_y_trend = self.y_trend[r_begin:r_end].reshape(-1,self.channel)
-        seq_y_seasonal = self.y_seasonal[r_begin:r_end].reshape(-1,self.channel)
-        seq_y_resid = self.y_resid[r_begin:r_end].reshape(-1,self.channel)
+        # seq_y_trend = self.y_trend[r_begin:r_end].reshape(-1,self.channel)
+        # seq_y_seasonal = self.y_seasonal[r_begin:r_end].reshape(-1,self.channel)
+        # seq_y_resid = self.y_resid[r_begin:r_end].reshape(-1,self.channel)
 
 
-        return seq_x, seq_y, seq_x_mark, seq_y_mark, seq_x_trend, seq_x_seasonal, seq_x_resid
+        return seq_x, seq_y, seq_z,seq_x_mark, seq_y_mark, seq_x_trend, seq_x_seasonal, seq_x_resid
 
     def __len__(self):
         return len(self.data_x) - self.seq_len - self.pred_len + 1
 
     def inverse_transform(self, data):
-        return self.scaler.inverse_transform(data)
+        inverse_data=np.zeros(data.shape)
+        if len(data.shape) == 3:
+            for i in range(data.shape[0]):
+                inverse_data[i] = self.scaler.inverse_transform(data[i])
+        else:
+            inverse_data = self.scaler.inverse_transform(data)
+        return inverse_data
 
 
 if __name__ == '__main__':

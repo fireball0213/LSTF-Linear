@@ -201,3 +201,14 @@ def plot_fft3(data, inverted_data, t,title):
     plt.title('Frequency cut='+str(title))
     plt.legend()
     plt.show()
+
+
+def plot_spirit(spirit,data_train,data_test,data_x):
+    plt.plot(data_train[:1000, -1], label='train')
+    plt.plot(data_test[:1000, -1], label='test')
+    k1 = spirit.inverse_transform(data_x)
+    k2 = spirit.inverse_transform(data_x)
+    plt.plot(k1[:1000, -1], label='Original_train')
+    plt.plot(k2[:1000, -1], label='Original_test')
+    plt.legend()
+    plt.show()

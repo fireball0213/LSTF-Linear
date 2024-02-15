@@ -1,10 +1,11 @@
-
+import time
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from statsmodels.tsa.seasonal import STL,seasonal_decompose
 import numpy as np
 import pandas as pd
+from numpy.lib.stride_tricks import sliding_window_view
 def get_decompose(args):
     decompose_dict = {
         'STL': STL_decomposition,
@@ -19,7 +20,15 @@ def get_decompose(args):
         'None': None,
     }
     return decompose_dict[args.decompose]
-
+#一个时间装饰器
+def timeit(func):
+    def wrapper(*args, **kwargs):
+        start = time.time()
+        result = func(*args, **kwargs)
+        end = time.time()
+        print(f'{func.__name__} took {(end - start):.2f} seconds')
+        return result
+    return wrapper
 
 # 移动平均分解
 # def moving_average(x, seasonal_period):
@@ -62,7 +71,7 @@ def get_decompose(args):
 #
 #     residual = x - trend - seasonal
 #     return trend, seasonal,residual
-
+# @timeit
 def moving_average_series(x,seasonal_period,resid):
     """
     Moving average block to highlight the trend of time series
@@ -77,37 +86,65 @@ def moving_average_series(x,seasonal_period,resid):
     seasonal = torch.zeros_like(x)
     residual = torch.zeros_like(x)
 
+    if len(x.shape)==2:
     # Calculate components for each channel
-    for channel in range(x.shape[1]):
-        x_channel = x[:, channel]
+        for channel in range(x.shape[-1]):
+            x_channel = x[:, channel]
 
-        # Calculate moving average
-        window_size = seasonal_period
-        padding = window_size // 2
-        x_padded = F.pad(x_channel.unsqueeze(0).unsqueeze(0), (padding-1, padding), mode='reflect').squeeze(0)
-        moving_avg = F.avg_pool1d(x_padded, kernel_size=window_size, stride=1, padding=0).squeeze()
+            # Calculate moving average
+            window_size = seasonal_period
+            padding = window_size // 2
+            x_padded = F.pad(x_channel.unsqueeze(0).unsqueeze(0), (padding-1, padding), mode='reflect').squeeze(0)
+            moving_avg = F.avg_pool1d(x_padded, kernel_size=window_size, stride=1, padding=0).squeeze()
 
-        # Adjust trend size to match original data size
-        trend_size = moving_avg.shape[0]
-        trend[:, channel] = moving_avg
+            # Adjust trend size to match original data size
+            trend_size = moving_avg.shape[0]
+            trend[:, channel] = moving_avg
 
-        # Deseasonalize the series by removing the trend component
-        deseasonalized = x_channel - trend[:trend_size, channel]
+            # Deseasonalize the series by removing the trend component
+            deseasonalized = x_channel - trend[:trend_size, channel]
 
-        # Calculate seasonal component by averaging over the same seasonal periods
-        for i in range(seasonal_period):
-            seasonal_indices = torch.arange(i, trend_size, seasonal_period)
-            if len(seasonal_indices) > 0:
-                seasonal_mean = deseasonalized[seasonal_indices].mean()
-                seasonal[seasonal_indices, channel] = seasonal_mean
+            # Calculate seasonal component by averaging over the same seasonal periods
+            for i in range(seasonal_period):
+                seasonal_indices = torch.arange(i, trend_size, seasonal_period)
+                if len(seasonal_indices) > 0:
+                    seasonal_mean = deseasonalized[seasonal_indices].mean()
+                    seasonal[seasonal_indices, channel] = seasonal_mean
 
-        # Calculate residual component
-        residual[:, channel] = x_channel - trend[:trend_size, channel] - seasonal[:trend_size, channel]
+            # Calculate residual component
+            residual[:, channel] = x_channel - trend[:trend_size, channel] - seasonal[:trend_size, channel]
+    else:
+        batch_size,seq_len,channels = x.shape[0],x.shape[1],x.shape[2]
+        for j in range(batch_size):
+            for i in range(channels):
+                x_channel = x[j, :, i]
+                # Calculate moving average
+                window_size = seasonal_period
+                padding = window_size // 2
+                x_padded = F.pad(x_channel.unsqueeze(0).unsqueeze(0), (padding-1, padding), mode='reflect').squeeze(0)
+                moving_avg = F.avg_pool1d(x_padded, kernel_size=window_size, stride=1, padding=0).squeeze()
+
+                # Adjust trend size to match original data size
+                trend_size = moving_avg.shape[0]
+                trend[j, :, i] = moving_avg
+
+                # Deseasonalize the series by removing the trend component
+                deseasonalized = x_channel - trend[j, :trend_size, i]
+
+                # Calculate seasonal component by averaging over the same seasonal periods
+                for k in range(seasonal_period):
+                    seasonal_indices = torch.arange(k, trend_size, seasonal_period)
+                    if len(seasonal_indices) > 0:
+                        seasonal_mean = deseasonalized[seasonal_indices].mean()
+                        seasonal[j, seasonal_indices, i] = seasonal_mean
+
+                # Calculate residual component
+                residual[j, :, i] = x_channel - trend[j, :trend_size, i] - seasonal[j, :trend_size, i]
 
     # Convert components to numpy arrays
-    trend = trend.numpy()
-    seasonal = seasonal.numpy()
-    residual = residual.numpy()
+    # trend = trend.numpy()
+    # seasonal = seasonal.numpy()
+    # residual = residual.numpy()
 
     if resid:
         return trend, seasonal, residual
@@ -139,28 +176,29 @@ def differential_decomposition(x, seasonal_period):
     seasonal = x_tensor.numpy() - trend.numpy()
     return trend.numpy(), seasonal
 
-
+# @timeit
 def STL_decomposition(x, seasonal_period, resid):
     #如果x是tensor，转为numpy
     if isinstance(x,torch.Tensor):
         x=x.cpu().numpy()
+    trends = np.zeros_like(x)
+    seasonals = np.zeros_like(x)
+    residuals = np.zeros_like(x)
 
-    if x.shape[-1]>1:
-        trends = np.zeros_like(x)
-        seasonals = np.zeros_like(x)
-        residuals = np.zeros_like(x)
+    if len(x.shape)==2:
         for i in range(x.shape[-1]):
             result = STL(x[:, i], period=seasonal_period).fit()
             trends[:, i] = result.trend
             seasonals[:, i] = result.seasonal
             residuals[:, i] = result.resid
     else:
-        x = x.reshape(-1)
-        # 单变量
-        result = STL(x, period=seasonal_period).fit()  # trend=49,
-        trends = result.trend
-        seasonals = result.seasonal
-        residuals = result.resid
+        batch_size,seq_len,channels = x.shape[0],x.shape[1],x.shape[2]
+        for j in range(batch_size):
+            for i in range(channels):
+                result = STL(x[j, :, i], period=seasonal_period).fit()
+                trends[j, :, i] = result.trend
+                seasonals[j, :, i] = result.seasonal
+                residuals[j, :, i] = result.resid
 
     if resid:
         return trends, seasonals, residuals
@@ -226,7 +264,7 @@ def STL_seasonal_robust(x, seasonal_period, resid):
     if isinstance(x,torch.Tensor):
         x=x.cpu().numpy()
 
-    if x.shape[-1]>1:
+    if len(x.shape[-1])==2:
         trends = np.zeros_like(x)
         seasonals = np.zeros_like(x)
         residuals = np.zeros_like(x)
@@ -247,52 +285,32 @@ def STL_seasonal_robust(x, seasonal_period, resid):
         return trends, seasonals, residuals
     else:
         return trends, seasonals + residuals, residuals
-
+@timeit
 def X11_decomposition(x, seasonal_period, resid):
     # 如果x是tensor，转为numpy
     if isinstance(x, torch.Tensor):
         x = x.cpu().numpy()
-    # x = x.reshape(-1)
-    #
-    # # 将numpy数组转换为pandas序列，确保时间序列索引
-    # x = pd.Series(x)
-    #
-    # # 使用seasonal_decompose方法进行季节性分解，模式设为'additive'或'multiplicative'，取决于数据特性
-    # # 此处使用'additive'作为示例
-    # result = seasonal_decompose(x, model='additive', period=seasonal_period)
-    #
-    # trends = result.trend
-    # seasonals = result.seasonal
-    # residuals = result.resid
+
     trends = np.zeros_like(x)
     seasonals = np.zeros_like(x)
     residuals = np.zeros_like(x)
-
-
-    if x.shape[-1] > 1:
+    if len(x.shape)==2:
         for i in range(x.shape[-1]):
-            # 将每个通道的数据转换为pandas序列
-            xi = pd.Series(x[:, i])
-
-            # 使用seasonal_decompose方法进行季节性分解
+            xi = pd.Series(x[:, i])# 将每个通道的数据转换为pandas序列
             result = seasonal_decompose(xi, model='additive', period=seasonal_period, extrapolate_trend='freq')
-
-            # 存储每个分量
             trends[:, i] = result.trend
             seasonals[:, i] = result.seasonal
             residuals[:, i] = result.resid
+
     else:
-        # 对于单通道数据，确保其形状为一维
-        x = x.ravel()
-        xi = pd.Series(x)
-
-        # 进行季节性分解
-        result = seasonal_decompose(xi, model='additive', period=seasonal_period, extrapolate_trend='freq')
-
-        # 存储分解结果
-        trends = result.trend.values
-        seasonals = result.seasonal.values
-        residuals = result.resid.values
+        batch_size,seq_len,channels = x.shape[0],x.shape[1],x.shape[2]
+        for j in range(batch_size):
+            for i in range(channels):
+                xi = pd.Series(x[j, :, i])
+                result = seasonal_decompose(xi, model='additive', period=seasonal_period, extrapolate_trend='freq')
+                trends[j, :, i] = result.trend
+                seasonals[j, :, i] = result.seasonal
+                residuals[j, :, i] = result.resid
     # 将结果中的NaN值替换为0，因seasonal_decompose在趋势和残差的边界处可能产生NaN值
     trends = np.nan_to_num(trends)
     seasonals = np.nan_to_num(seasonals)
