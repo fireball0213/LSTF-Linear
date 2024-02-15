@@ -30,11 +30,10 @@ class BaseLinearModel(nn.Module):
         # 前向传播，具体实现由子类完成
         pass
 
-    def fit(self, x, y,x_trend=None, x_seasonal=None,x_res=None, y_trend=None, y_seasonal=None):
+    def fit(self, x, y,x_trend=None, x_seasonal=None,x_res=None):
         x ,y= x.float(), y.float()
         if self.decompose_all:
             x_trend, x_seasonal,x_res= x_trend.float(), x_seasonal.float(),x_res.float()
-            y_trend, y_seasonal= y_trend.float(), y_seasonal.float()
         self.train()
         self.optimizer.zero_grad()
         if self.decompose_all:#使用全部数据的分解结果

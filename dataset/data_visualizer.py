@@ -44,7 +44,7 @@ def plot_slide(x,t):
     plt.plot(x[:, 0][:t],label='original')
     plt.legend()
     plt.show()
-def plot_day_forecast(fore, test_Y):
+def plot_day_forecast(fore, test_Y,flag=None):
     '''
     创建Plot_length*Plot_length的画布,画出Plot_num个子图
     每个子图对比一段长为pred_len的预测结果和真实值，子图间相隔Step个时间点
@@ -68,11 +68,12 @@ def plot_day_forecast(fore, test_Y):
     #使图像title显示在最上面一行
 
     # plt.title("forecast results"+str(index)+"-"+str(index+Plot_num*Step))
+    plt.title(flag)
     plt.tight_layout()
     plt.plot()
     # plt.show()
 
-def plot_random_forecast(fore, test_Y):
+def plot_random_forecast(fore, test_Y,flag=None):
     '''
     创建Plot_length*Plot_length的画布,画出Plot_num个子图
     每个子图对比一段长为pred_len的预测结果和真实值，子图间相隔Step个时间点
@@ -92,6 +93,7 @@ def plot_random_forecast(fore, test_Y):
         if i == 0:  # 只在第一个子图上添加图例
             ax.legend()
     # plt.title("forecast results : random view")
+    plt.title(flag)
     #使图像title不重叠
     plt.tight_layout()
     plt.plot()

@@ -1,17 +1,18 @@
 import numpy as np
 from numpy.lib.stride_tricks import sliding_window_view
 from utils.metrics import mse, mae, mape, smape, mase
-from utils.transforms import get_denoise
+from utils.transforms import get_denoise,get_transform
 from dataset.data_visualizer import data_vi,plot_fft2
 import matplotlib.pyplot as plt
 import torch
 from torch.utils.data import DataLoader
 from dataset.data_tools import StandardScaler
 import os
+
 class MLTrainer:
-    def __init__(self, args,model, transform, dataset,device='cpu'):
+    def __init__(self, args,model, dataset,device='cpu'):
         self.model = model
-        self.transform = transform
+        self.transform = get_transform(args)
         self.dataset = dataset
 
         self.period = args.period
@@ -35,11 +36,10 @@ class MLTrainer:
         if isinstance(self.model, torch.nn.Module):#已归一化、计算独热编码
             self.model.train()
             train_loader = DataLoader(self.dataset, batch_size=self.args.batch_size, shuffle=True)
-            for data, target, _, _,data_trend, data_seasonal,data_res,target_trend, target_seasonal,_ in train_loader:
+            for data, target, _, _,data_trend, data_seasonal,data_res in train_loader:
                 data, target = data.to(self.device), target.to(self.device)
                 data_trend, data_seasonal,data_res = data_trend.to(self.device), data_seasonal.to(self.device),data_res.to(self.device)
-                target_trend, target_seasonal = target_trend.to(self.device), target_seasonal.to(self.device)
-                self.model.fit(data, target, data_trend, data_seasonal,data_res, target_trend, target_seasonal)
+                self.model.fit(data, target, data_trend, data_seasonal,data_res)
         else:
             # train_X = self.dataset.train_data
             if flag==None:
@@ -74,7 +74,7 @@ class MLTrainer:
             test_Y = []
             test_loader = DataLoader(test_data, batch_size=self.args.batch_size, shuffle=False)
             with torch.no_grad():  # 在评估阶段，不计算梯度
-                for data, target, _, _,data_trend, data_seasonal,data_res,target_trend, target_seasonal,_  in test_loader:
+                for data, target, _, _,data_trend, data_seasonal,data_res  in test_loader:
                     data, target = data.to(self.device), target.to(self.device)
                     # target=target[:, :, -1]
                     data_trend, data_seasonal, data_res = data_trend.to(self.device), data_seasonal.to(self.device), data_res.to(self.device)

@@ -51,7 +51,7 @@ def get_args():
 
     # forcast task config
     parser.add_argument('--seq_len', type=int, default=96, help='input sequence length')
-    parser.add_argument('--pred_len', type=int, default=24, help='prediction sequence length')
+    parser.add_argument('--pred_len', type=int, default=96, help='prediction sequence length')
 
 
     # model define
@@ -79,7 +79,6 @@ def get_args():
     #ResidualModel define
     parser.add_argument('--trend_model', type=str, default='Autoregression', help='trend model for ResidualModel')
     parser.add_argument('--seasonal_model', type=str, default='Autoregression', help='seasonal model for ResidualModel')
-    # parser.add_argument('--seasonal_model', type=str, default='TsfKNN', help='seasonal model for ResidualModel')
     parser.add_argument('--decompose_based', type=bool, default=False, help='使用两种模型分别预测')
 
     # EMA define
@@ -88,17 +87,13 @@ def get_args():
 
     # multi-step ahead strategy used in LR and TsfKNN,多步直接预测or单步迭代预测
     parser.add_argument('--msas', type=str, default='MIMO', help=' options: [MIMO, recursive]')
-    # parser.add_argument('--msas', type=str, default='recursive', help='options: [MIMO, recursive]')
 
     #TsfKNN define
     parser.add_argument('--n_neighbors', type=int, default=9, help='number of neighbors used in TsfKNN')
     parser.add_argument('--distance_dim', type=str, default='OT', help='distance_dim used in TsfKNN, options: [OT, multi]')
     # parser.add_argument('--distance_dim', type=str, default='multi', help='distance_dim used in TsfKNN, options: [OT, multi]')
-    # parser.add_argument('--distance', type=str, default='euclidean', help='distance used in TsfKNN')
-    parser.add_argument('--distance', type=str, default='manhattan', help='distance used in TsfKNN')
-    # parser.add_argument('--distance', type=str, default='chebyshev', help='distance used in TsfKNN')
-    # parser.add_argument('--distance', type=str, default='mahalanobis', help='distance used in TsfKNN')
-    # parser.add_argument('--distance', type=str, default='weighted_euclidean', help='distance used in TsfKNN')
+    parser.add_argument('--distance', type=str, default='manhattan', help="distance used in TsfKNN,"
+                                                                          "options=['euclidean', 'manhattan', 'chebyshev', 'mahalanobis', 'weighted_euclidean']")
     # parser.add_argument('--weighted', type=list, default=[1,1,1,1,1,1,1], help='weighted used in weighted_euclidean')
     parser.add_argument('--weighted', type=list, default=[0, 0, 2, 0, 1, 0, 4],help='weighted used in weighted_euclidean')
 
@@ -107,15 +102,14 @@ def get_args():
     '''
     plain: 只用96个点训练线性模型，预测接下来的32个点
     AR: 用全部trend训练AR模型，再用96个点预测接下来的32个点
-    t_plus_s: 在STL计算距离时考虑trend，实际效果基本相当于没做STL
     t_s: 将趋势和季节分量用两个KNN匹配，再相加预测
     AR_AR: 将趋势和季节分量用两个AR模型预测，再相加预测
     '''
-    parser.add_argument('--trend', type=str, default='AR_AR', help='options: [plain, AR, t_plus_s, t_s,AR_AR]')
+    parser.add_argument('--trend', type=str, default='AR_AR', help='options: [plain, AR, t_s,AR_AR]')
 
     # transform define
-    parser.add_argument('--transform', type=str, default='IdentityTransform',
-                        options=['IdentityTransform', 'Normalization', 'Standardization', 'MeanNormalization', 'BoxCox'])
+    parser.add_argument('--transform', type=str, default='IdentityTransform'
+                        ,help="options=['IdentityTransform', 'Normalization', 'Standardization', 'MeanNormalization', 'BoxCox']")
 
     #freq denoise define
     parser.add_argument('--freq_denoise', type=str, default='None', help='freq_denoise method，options: [None, fft, wavelet]')
@@ -129,7 +123,7 @@ def get_args():
 
     #spirit
     parser.add_argument('--use_spirit', default=True, help='Whether to use SPIRIT algorithm')
-    parser.add_argument('--spirit_r', type=int, default=10, help='Target dimensionality for SPIRIT algorithm')
+    parser.add_argument('--rank', type=int, default=7, help='Target dimensionality for SPIRIT algorithm')
     parser.add_argument('--spirit_k', type=int, default=1, help='Number of principal components for SPIRIT')
     parser.add_argument('--spirit_alpha', type=float, default=0.98, help='Forgetting factor for SPIRIT')
 
@@ -158,19 +152,8 @@ def get_model(args,key=None):
     return model_dict[args.model](args)
 
 
-def get_transform(args):
-    transform_dict = {
-        'IdentityTransform': IdentityTransform,
-        'Normalization': Normalization,
-        'Standardization': Standardization,
-        'MeanNormalization':MeanNormalization,
-        'BoxCox':BoxCox,
-        # 'FourierTransform':FourierTransform,
-    }
-    return transform_dict[args.transform](args)
+def xxx(args,fix_seed):
 
-def xxx(args):
-    fix_seed = 2023
     random.seed(fix_seed)
     np.random.seed(fix_seed)
     # 固定随机种子
@@ -189,52 +172,49 @@ def xxx(args):
     seasonal_model = get_model(args, args.seasonal_model)
     model = get_model(args)
 
-    train_dataset = Dataset_ETT_hour(args, flag='train', scale=True, inverse=False, timeenc=0)
-    test_dataset = Dataset_ETT_hour(args, flag='test', scale=True, inverse=False, timeenc=0)
-    transform = get_transform(args)
+    train_dataset = Dataset_ETT_hour(args, flag='train')
+    test_dataset = Dataset_ETT_hour(args, flag='test')
 
     if not args.decompose_based:  # 使用单一模型
         # train model
-        trainer = MLTrainer(args, model=model, transform=transform, dataset=train_dataset)
+        trainer = MLTrainer(args, model=model, dataset=train_dataset)
         trainer.train()
 
         # data_visualize(dataset.data, 5000)
         # plt.show()
 
-        # print('evaluate model')
         fore, test_Y = trainer.evaluate(test_dataset)
     else:  # 使用两个模型分别预测
-        trainer_trend = MLTrainer(args, model=trend_model, transform=transform, dataset=train_dataset)
+        trainer_trend = MLTrainer(args, model=trend_model, dataset=train_dataset)
         trainer_trend.train(flag='trend')
 
-        trainer_seasonal = MLTrainer(args, model=seasonal_model, transform=transform, dataset=train_dataset)
+        trainer_seasonal = MLTrainer(args, model=seasonal_model, dataset=train_dataset)
         trainer_seasonal.train(flag='seasonal')
 
-        # print('evaluate model')
         fore_trend, test_Y = trainer_trend.evaluate(test_dataset, flag='trend')
         fore_seasonal, test_Y = trainer_seasonal.evaluate(test_dataset, flag='seasonal')
         fore = fore_trend.reshape(-1, args.pred_len, args.channels) + fore_seasonal.reshape(-1, args.pred_len,
                                                                                             args.channels)
         test_Y = test_Y.reshape(-1, args.pred_len, args.channels)
 
-    evaluate_metrics(fore, test_Y, args,flag="多变量评估")
+    evaluate_metrics(fore, test_Y, args)#,flag="多变量评估"
 
     # plot_forecast(fore, test_Y, 500)  # 看所有预测结果上的第一个数据点预测的效果
-    plot_day_forecast(fore, test_Y)  # 看某日24h的预测结果，每个子图是predict_len个数据点
-    plot_random_forecast(fore, test_Y)  # 看随机预测结果上的predict_len个数据点预测的效果
+    # plot_day_forecast(fore, test_Y,flag=args.model)  # 看某日24h的预测结果，每个子图是predict_len个数据点
+    plot_random_forecast(fore, test_Y,flag=args.model)  # 看随机预测结果上的predict_len个数据点预测的效果
     plt.show()
 
-    evaluate_metrics(fore[:, :, -1], test_Y[:, :, -1], args,flag="OT变量评估")
+    # evaluate_metrics(fore[:, :, -1], test_Y[:, :, -1], args,flag="OT变量评估")
 
 
 if __name__ == '__main__':
-
+    fix_seed = 2023
 
     args = get_args()
     # args.decompose_based = True
     # args.model = 'ResidualModel'
-    args.model = 'DLinear'
-    # args.model = 'NLinear'
+    # args.model = 'DLinear'
+    args.model = 'NLinear'
     # args.model = 'Linear_NN'
     # args.model = 'ThetaMethod'
 
@@ -247,11 +227,18 @@ if __name__ == '__main__':
     args.target = 'Multi'
     # args.target = 'OT'
 
-    for args.model,args.decompose_based in [('DLinear',False),('NLinear',True)]:
+    for args.model,args.decompose_based in [('DLinear',False)]:#,('NLinear',True)
         for args.individual in [True]:#, False
             print()
-            print(args.model," individual =",args.individual)
-            for args.decompose in ['STL','MA','X11']:
-                for args.residual in [True,False]:
-                    print(args.decompose,' resid =',args.residual)
-                    xxx(args)
+            end='\n'
+            print("Model:",args.model,end=end)
+            print("individual =",args.individual,end=end)
+            for args.decompose in ['STL']:#,'X11','MA'
+                for args.residual in [True]:#,False
+                    print("Decompose : ",args.decompose,end=end)
+                    print('resid =', args.residual,end=end)
+                    for args.pred_len in [96, 192, 336, 720]:
+                        print('pred_len =',args.pred_len,end='')
+                        for args.use_spirit in [False]:#True,
+                            # print('use_spirit =',args.use_spirit)
+                            xxx(args,fix_seed)

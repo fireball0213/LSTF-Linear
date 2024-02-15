@@ -9,23 +9,22 @@ import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import Dataset, DataLoader
-from dataset.data_tools import StandardScaler, time_features, get_one_hot, get_one_hot_feature
+from dataset.data_tools import  time_features, get_one_hot, get_one_hot_feature
+from sklearn.preprocessing import StandardScaler
 from dataset.data_visualizer import plot_decompose
 import warnings
 from utils.decomposition import get_decompose
 warnings.filterwarnings('ignore')
-
+from models.SPIRIT import SPIRITModel
 WINDOW = 24
 
 
 class Dataset_ETT_hour(Dataset):
-    def __init__(self,args, flag='train',
-                scale=True, inverse=False, timeenc=0):
+    def __init__(self,args, flag='train',inverse=False, timeenc=0):
         """
         :param flag: ['train','val','test']
         :param data_path: ['ETTh1.csv','ETTh2.csv','ETTm1.csv','ETTm1.csv']
         :param target:控制目标列
-        :param scale:归一化，默认True
         :param inverse:数据逆向
         :param timeenc:0
         :param freq:暂用h
@@ -39,10 +38,9 @@ class Dataset_ETT_hour(Dataset):
         self.set_type = type_map[flag]
 
         self.target = args.target
-        self.scale = scale
-        self.ratio_train = args.ratio_train
-        self.ratio_val = args.ratio_val
-        self.ratio_test = args.ratio_test
+        # self.ratio_train = args.ratio_train
+        # self.ratio_val = args.ratio_val
+        # self.ratio_test = args.ratio_test
         self.flag = flag
         self.inverse = inverse
         self.timeenc = timeenc
@@ -102,57 +100,59 @@ class Dataset_ETT_hour(Dataset):
             df_data = df_raw[[self.target]]
             self.channel = 1
 
-        # 数据缩放
-        if self.scale:
-            if self.flag == 'train':
-                self.scaler.fit(df_data.values)
-            data = self.scaler.transform(df_data.values)
-        else:
-            data = df_data.values
-
-        # 计算训练、验证、测试数据的分割点
-        total_size = len(data)
-        train_end = int(total_size * self.ratio_train)
-        val_end = train_end + int(total_size * self.ratio_val)
-
+        # 根据频率设置训练、验证、测试数据的数量
+        if self.freq == 'h':
+            self.num_train = 12 * 30 * 24
+            self.num_val = 4 * 30 * 24
+            self.num_test = 4 * 30 * 24
+        elif self.freq == 'm':
+            self.num_train = 12 * 30 * 24 * 4
+            self.num_val = 4 * 30 * 24 * 4
+            self.num_test = 4 * 30 * 24 * 4
         # 根据flag切分数据
         if self.flag == 'train':
-            start, end = 0, train_end
+            start, end = 0, self.num_train
+
         elif self.flag == 'val':
-            start, end = train_end, val_end
+            start, end = self.num_train, self.num_train + self.num_val
         else:  # test
-            start, end = val_end, total_size
+            start, end = self.num_train + self.num_val, self.num_train + self.num_val + self.num_test
+
+        #使用训练集进行归一化
+        self.scaler.fit(df_data.values[:self.num_train])
+        data = self.scaler.transform(df_data.values)
+
+        self.data_train = data[:self.num_train]
+        self.data_val = data[self.num_train:self.num_train + self.num_val]
+        self.data_test = data[self.num_train + self.num_val:self.num_train + self.num_val + self.num_test]
 
         self.data_x = data[start:end]
         self.data_y = self.data_x
-        df_stamp = df_raw[['date']][start:end]
 
+        df_stamp = df_raw[['date']][start:end]
         df_stamp['date'] = pd.to_datetime(df_stamp.date)
         self.data_stamp = time_features(df_stamp, timeenc=self.timeenc, freq=self.freq)#月-日-星期-小时
         self.data_one_hot = get_one_hot_feature(self.data_stamp, freq=self.freq)
 
-        #TODO：add SPIRIT
+        if self.args.use_spirit:
+            spirit = SPIRITModel(self.args)
+            x_transformed = spirit.fit_transform(self.data_x)
+            self.data_x = x_transformed
+            self.data_y = self.data_x
 
         # 分解
         if self.decompose is not None:
             self.trend, self.seasonal, self.resid = self.decompose(self.data_x, self.period,self.residual)
+            self.y_trend, self.y_seasonal, self.y_resid = self.decompose(self.data_y, self.period,self.residual)
             # plot_decompose(self.data_x, self.trend, self.seasonal, self.resid, 0, 1000, 'whole decompose_' + str(self.flag))
 
     def __getitem__(self, index):
         s_begin = index
-        # print(self.seq_len)
         s_end = s_begin + self.seq_len
-        # r_begin = s_end - self.label_len
         r_begin = s_end
         r_end = s_end + self.pred_len
 
-        # seq_x = self.data_x[s_begin:s_end].reshape(-1, self.window)
         seq_x = self.data_x[s_begin:s_end]
-        # if self.inverse:
-        #     seq_y = np.concatenate([self.data_x[r_begin:r_begin+self.label_len], self.data_y[r_begin+self.label_len:r_end]], 0)
-        # else:
-        #     seq_y = self.data_y[r_begin:r_end]
-        # seq_y = self.data_y[r_begin:r_end].reshape(-1, self.window)
         seq_y = self.data_y[r_begin:r_end]
         # seq_x_mark = self.data_stamp[s_begin:s_end].reshape(-1, self.window, 4)
         # seq_y_mark = self.data_stamp[r_begin:r_end].reshape(-1, self.window, 4)
@@ -162,12 +162,13 @@ class Dataset_ETT_hour(Dataset):
         seq_x_trend = self.trend[s_begin:s_end].reshape(-1,self.channel)
         seq_x_seasonal = self.seasonal[s_begin:s_end].reshape(-1,self.channel)
         seq_x_resid = self.resid[s_begin:s_end].reshape(-1,self.channel)
-        seq_y_trend = self.trend[r_begin:r_end].reshape(-1,self.channel)
-        seq_y_seasonal = self.seasonal[r_begin:r_end].reshape(-1,self.channel)
-        seq_y_resid = self.resid[r_begin:r_end].reshape(-1,self.channel)
+
+        seq_y_trend = self.y_trend[r_begin:r_end].reshape(-1,self.channel)
+        seq_y_seasonal = self.y_seasonal[r_begin:r_end].reshape(-1,self.channel)
+        seq_y_resid = self.y_resid[r_begin:r_end].reshape(-1,self.channel)
 
 
-        return seq_x, seq_y, seq_x_mark, seq_y_mark, seq_x_trend, seq_x_seasonal, seq_x_resid, seq_y_trend, seq_y_seasonal, seq_y_resid
+        return seq_x, seq_y, seq_x_mark, seq_y_mark, seq_x_trend, seq_x_seasonal, seq_x_resid
 
     def __len__(self):
         return len(self.data_x) - self.seq_len - self.pred_len + 1

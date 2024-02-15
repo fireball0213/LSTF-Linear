@@ -8,6 +8,17 @@ import matplotlib.pyplot as plt
 from scipy.fft import fft, ifft
 from dataset.data_visualizer import plot_fft,plot_fft3
 import pywt
+
+def get_transform(args):
+    transform_dict = {
+        'IdentityTransform': IdentityTransform,
+        'Normalization': Normalization,
+        'Standardization': Standardization,
+        'MeanNormalization':MeanNormalization,
+        'BoxCox':BoxCox,
+        # 'FourierTransform':FourierTransform,
+    }
+    return transform_dict[args.transform](args)
 class Transform:
     """
     Preprocess time series
