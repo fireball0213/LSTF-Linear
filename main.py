@@ -70,7 +70,7 @@ def get_args():
 
     # decompose method
     parser.add_argument('--decompose_all', type=bool, default=True, help='decompose all series，使用完整序列的分解')
-    parser.add_argument('--residual', type=bool, default=False, help='分解后是否将残差分量保留，不保留即加到季节性中')
+    parser.add_argument('--residual', type=bool, default=True, help='分解后是否将残差分量保留，不保留即加到季节性中')
     parser.add_argument('--decompose', type=str, default='STL')
 
     #ThetaMethod define
@@ -122,9 +122,8 @@ def get_args():
     parser.add_argument('--wavelet', type=str, default='db1', help='wavelet used in wavelet')
 
     #spirit
-    parser.add_argument('--use_spirit', default=True, help='Whether to use SPIRIT algorithm')
+    parser.add_argument('--use_spirit', default=False, help='Whether to use SPIRIT algorithm')
     parser.add_argument('--rank', type=int, default=7, help='Target dimensionality for SPIRIT algorithm')
-    parser.add_argument('--spirit_k', type=int, default=1, help='Number of principal components for SPIRIT')
     parser.add_argument('--spirit_alpha', type=float, default=0.98, help='Forgetting factor for SPIRIT')
 
     args = parser.parse_args()
@@ -152,7 +151,7 @@ def get_model(args,key=None):
     return model_dict[args.model](args)
 
 
-def xxx(args,fix_seed):
+def run_hw2(args,fix_seed):
 
     random.seed(fix_seed)
     np.random.seed(fix_seed)
@@ -213,44 +212,45 @@ if __name__ == '__main__':
     args = get_args()
     # args.decompose_based = True
     # args.model = 'ResidualModel'
-    # args.model = 'DLinear'
-    args.model = 'NLinear'
+    args.model = 'DLinear'
+    # args.model = 'NLinear'
     # args.model = 'Linear_NN'
     # args.model = 'ThetaMethod'
+    # args.model = 'TsfKNN'
 
-    args.trend_model = 'Autoregression'
-    args.seasonal_model = 'Autoregression'
+    # args.trend_model = 'Autoregression'
+    # args.seasonal_model = 'Autoregression'
     # args.trend_model = 'NLinear'
     # args.seasonal_model = 'NLinear'
 
-    args.individual = True
+    # args.individual = True
     args.target = 'Multi'
     # args.target = 'OT'
-    args.batch_size = 1
-    for args.model,args.decompose_based in [('DLinear',False),]:#,('NLinear',True)
-        for args.individual in [True]:#, False
-            print()
-            end='\n'
-            end=', '
-            print("Model:",args.model,end=end)
-            print("individual =",args.individual,end=end)
-            for args.decompose in ['MA']:#,'STL','X11'
-                for args.residual in [True]:#,False
-                    print("Decompose : ",args.decompose,end=end)
-                    print('resid =', args.residual,end=end)
-                    for args.pred_len in [96]:#, 192, 336, 720
-                        print('pred_len =',args.pred_len,end='')
-                        for args.batch_size in [64]:  # ,32, 16, 8, 4, 2, 1
-                            print('batch_size =',args.batch_size,end=' ')
-                            for args.use_spirit in [True]:#,False
-                                print('use_spirit =',args.use_spirit)
-                                for args.rank in [7,6]:#
-                                    for args.spirit_k in [1]:
-                                        for args.spirit_alpha in [0.98]:#0.99,
-                                            print('rank =',args.rank,end=' ')
-                                            print('spirit_k =',args.spirit_k,end=' ')
-                                            print('spirit_alpha =',args.spirit_alpha,end=' ')
-                                            xxx(args,fix_seed)
-                            args.use_spirit = False
-                            print('use_spirit =',args.use_spirit,end=' ')
-                            xxx(args,fix_seed)
+    # args.batch_size = 1
+
+    run_hw2(args,fix_seed)
+
+    # for args.model in ['DLinear','NLinear']:#
+    # # for args.model,args.decompose_based in [('Autoregression',False),('Linear_NN',False),('NLinear',False),('DLinear',False)]:#,('NLinear',True)('DLinear',False),
+    #     for args.individual in [False]:#,True
+    #         print()
+    #         end='\n'
+    #         end=', '
+    #         print("Model:",args.model)#,end=end
+    #         print("individual =",args.individual,end=end)
+    #         for args.decompose in ['MA','STL']:#,'X11'
+    #             for args.residual in [True,False]:#
+    #                 print("Decompose : ",args.decompose,end=end)
+    #                 print('resid =', args.residual,end=end)
+    #                 for args.pred_len in [96]:#96, 192, 336, 720
+    #                     print('pred_len =',args.pred_len,end=end)
+    #                     # for args.use_spirit in [True]:#,False
+    #                     #     print('use_spirit =',args.use_spirit)
+    #                     #     for args.rank in [7,6,4]:#
+    #                     #         for args.spirit_alpha in [0.98]:#0.99,
+    #                     #             print('rank =',args.rank,end=' ')
+    #                     #             print('spirit_alpha =',args.spirit_alpha,end=' ')
+    #                     #             xxx(args,fix_seed)
+    #                     # args.use_spirit = False
+    #                     # print('use_spirit =',args.use_spirit,end=' ')
+    #                     run_hw2(args,fix_seed)

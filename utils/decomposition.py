@@ -191,6 +191,11 @@ def STL_decomposition(x, seasonal_period, resid):
             trends[:, i] = result.trend
             seasonals[:, i] = result.seasonal
             residuals[:, i] = result.resid
+    elif len(x.shape)==1:
+        result = STL(x, period=seasonal_period).fit()
+        trends = result.trend
+        seasonals = result.seasonal
+        residuals = result.resid
     else:
         batch_size,seq_len,channels = x.shape[0],x.shape[1],x.shape[2]
         for j in range(batch_size):

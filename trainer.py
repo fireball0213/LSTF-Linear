@@ -91,10 +91,9 @@ class MLTrainer:
         else:
             test_data = get_data_from_flag(test_data, flag)
             if self.target=='OT':
-                subseries_Y=sliding_window_view(test_data.data_x.ravel(), self.seq_len + self.pred_len)
                 subseries=sliding_window_view(test_data.ravel(), self.seq_len + self.pred_len)
                 test_X = subseries[:, :self.seq_len]
-                test_Y = subseries_Y[:, self.seq_len:]
+                test_Y = subseries[:, self.seq_len:]
             elif self.target=='Multi':
                 subseries_list = [sliding_window_view(test_data[:, i], self.seq_len + self.pred_len) for i in range(self.channels)]
                 subseries = np.stack(subseries_list, axis=-1)

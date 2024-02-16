@@ -6,12 +6,10 @@ class SPIRITModel:
         初始化SPIRIT算法参数
         :param window_size: 窗口大小，即每次处理的数据维度
         :param rank: 目标维度，即数据降维后的维度
-        :param k: SPIRIT算法中保留的主成分数目
         :param spirit_alpha: 遗忘因子，用于调整特征向量更新的速度,默认0.98
         """
         self.window_size = args.channels
         self.rank = args.rank
-        self.k = args.spirit_k
         self.alpha = args.spirit_alpha
         # 初始化矩阵P和权重向量w
         self.P = np.eye(self.window_size) * 0.001  # 小的正值初始化

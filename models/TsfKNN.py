@@ -23,16 +23,19 @@ class TsfKNN(MLForecastModel):
         self.trend = args.trend #趋势的预测方法
         self.distance_dim = args.distance_dim  # 是否是多变量距离
         self.weighted = args.weighted
+        self.resid=args.residual
+        self.target = args.target
+        self.channels = args.channels
         super().__init__()
 
     def _fit(self, X: np.ndarray) -> None:
-        if self.distance_dim == 'OT':
+        if self.target == 'OT':
             # self.X = X[0, :, -1]
             self.X = X[:, 0]
             self.X_slide = sliding_window_view(self.X, self.seq_len + self.pred_len)
             self.X_slide_seq = self.X_slide[:, :self.seq_len]
             if self.decompose is not None:
-                self.X_trend,self.X_seasonal,self.X_resid = self.decompose(self.X, self.period)  # 使用不同方法对整个序列进行季节性趋势分解
+                self.X_trend,self.X_seasonal,self.X_resid = self.decompose(self.X, self.period,self.resid)  # 使用不同方法对整个序列进行季节性趋势分解
                 # plot_decompose(self.X,self.X_trend,self.X_seasonal,self.X_resid,0,300,model=self.decompose.__name__)
 
                 self.trend_model = LinearRegression()
@@ -47,8 +50,8 @@ class TsfKNN(MLForecastModel):
                     seasonal_X = subsidies_seasonal[:, :self.seq_len]
                     seasonal_y = subsidies_seasonal[:, self.seq_len:]
                     self.seasonal_model.fit(seasonal_X, seasonal_y)
-        elif self.distance_dim=='multi':
-            self.X = X[0, :, :]
+        elif self.target=='Multi':
+            self.X = X
             self.X_slide = sliding_window_view(self.X, (self.seq_len + self.pred_len,1))
             self.X_slide = self.X_slide.transpose(0,2,1,3)[:,:,:,0]
             self.X_slide_seq = self.X_slide[:, :self.seq_len]
@@ -127,12 +130,12 @@ class TsfKNN(MLForecastModel):
         if self.decompose is not None:
             #还原测试序列，仅限单变量时使用
             testX=np.concatenate((X[:,0],X[-1,1:]),axis=0)
-            testX_trend, testX_seasonal, testX_resid = self.decompose(testX, self.period)
+            testX_trend, testX_seasonal, testX_resid = self.decompose(testX, self.period,self.resid)
+            # for j in range(self.channels):
             testX_trend_slide = sliding_window_view(testX_trend, self.seq_len )
             testX_seasonal_slide = sliding_window_view(testX_seasonal, self.seq_len )
             testX_resid_slide = sliding_window_view(testX_resid, self.seq_len )
             for i,x in enumerate(tqdm(X)):
-                # x_trend,x_seasonal,x_resid = self.decompose(x[0],self.period)
                 '''
                 优化为先还原测试序列，再统一STL分解。更合理也更快
                 '''
@@ -148,6 +151,8 @@ class TsfKNN(MLForecastModel):
                 # x_fore = seasonal_fore
 
                 fore.append(x_fore)
+            # #还原fore的形状
+            # fore = np.array(fore).reshape((-1, self.pred_len, self.channels))
         else:
             for i, x in enumerate(tqdm(X)):
                 x = np.expand_dims(x, axis=0)

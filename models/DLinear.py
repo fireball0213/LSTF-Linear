@@ -142,14 +142,14 @@ class DLinear(BaseLinearModel):
                 trend_seq_last = trend_channel[:, -1:]
                 seasonal_seq_last = seasonal_channel[:, -1:]
 
-                trend_channel_diff = trend_channel - trend_seq_last
-                seasonal_channel_diff = seasonal_channel - seasonal_seq_last
+                # trend_channel = trend_channel - trend_seq_last
+                # seasonal_channel = seasonal_channel - seasonal_seq_last
 
-                trend_outputs[:, :, i] = self.Linear_Trend[i](trend_channel_diff)
-                seasonal_outputs[:, :, i] = self.Linear_Seasonal[i](seasonal_channel_diff)
+                trend_outputs[:, :, i] = self.Linear_Trend[i](trend_channel)
+                seasonal_outputs[:, :, i] = self.Linear_Seasonal[i](seasonal_channel)
 
-                trend_outputs[:, :, i] = trend_outputs[:, :, i] + trend_seq_last
-                seasonal_outputs[:, :, i] = seasonal_outputs[:, :, i] + seasonal_seq_last
+                # trend_outputs[:, :, i] = trend_outputs[:, :, i] + trend_seq_last
+                # seasonal_outputs[:, :, i] = seasonal_outputs[:, :, i] + seasonal_seq_last
         else:
             trend_seq_last = trend[:, -1:,:]
             seasonal_seq_last = seasonal[:, -1:,:]

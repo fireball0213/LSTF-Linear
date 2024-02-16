@@ -145,14 +145,15 @@ class Dataset_ETT_hour(Dataset):
                 _=self.spirit.fit_transform(self.data_train)
                 x_transformed = self.spirit.transform(self.data_x)
             self.data_x = x_transformed
-            self.data_y = self.data_x#在spirit变化后的数据上评估
-            plot_spirit(self.spirit, self.data_train, self.data_test,self.data_x)
-
+            self.data_y = self.data_x
+            # self.data_z = self.data_x#在spirit变化后的数据上评估
+            plot_spirit(self.spirit, self.data_train, self.data_test,self.data_x,self.args.rank, self.flag)
+        #
         # 分解
         if self.decompose is not None:
             self.trend, self.seasonal, self.resid = self.decompose(self.data_x, self.period,self.residual)
             # self.y_trend, self.y_seasonal, self.y_resid = self.decompose(self.data_y, self.period,self.residual)
-            # plot_decompose(self.data_x, self.trend, self.seasonal, self.resid, 0, 1000, 'whole decompose_' + str(self.flag))
+            # plot_decompose(self.data_x, self.trend, self.seasonal, self.resid, 0, 200, 'whole decompose_' + str(self.flag))
 
     def __getitem__(self, index):
         s_begin = index
