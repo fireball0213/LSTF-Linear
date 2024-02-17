@@ -81,8 +81,6 @@ class NLinear(BaseLinearModel):
 
         if self.individual:
             outputs = torch.zeros(x.size(0), self.pred_len, self.channels, dtype=x.dtype, device=x.device)
-            # for i, linear in enumerate(self.Linear):
-            #     outputs[:, :, i] = linear(x[:, :, i])
             for i in range(self.channels):
                 outputs[:, :, i] = self.Linear[i](x[:, :, i])
         else:

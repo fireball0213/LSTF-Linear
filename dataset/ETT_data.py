@@ -147,7 +147,7 @@ class Dataset_ETT_hour(Dataset):
             self.data_x = x_transformed
             self.data_y = self.data_x
             # self.data_z = self.data_x#在spirit变化后的数据上评估
-            plot_spirit(self.spirit, self.data_train, self.data_test,self.data_x,self.args.rank, self.flag)
+            # plot_spirit(self.spirit, self.data_train, self.data_test,self.data_x,self.args.rank, self.flag)
 
         if self.decompose is not None:
             self.trend, self.seasonal, self.resid = self.decompose(self.data_x, self.period,self.residual)

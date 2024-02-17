@@ -119,6 +119,7 @@ def get_args():
     parser.add_argument('--rank', type=int, default=7, help='Target dimensionality for SPIRIT algorithm')
     parser.add_argument('--spirit_alpha', type=float, default=0.98, help='Forgetting factor for SPIRIT')
 
+    parser.add_argument('--hw4_run_SOTA', action='store_true')
     args = parser.parse_args()
     return args
 
@@ -156,7 +157,7 @@ def set_args_for_dataset(args):
         args.frequency = 'm'
     return args
 
-def run_hw3(args,fix_seed):
+def run_hw4(args,fix_seed):
 
     random.seed(fix_seed)
     np.random.seed(fix_seed)
@@ -236,88 +237,47 @@ if __name__ == '__main__':
     args.target = 'Multi'
     # args.target = 'OT'
     # args.batch_size = 1
+    args.D_N=True
 
-    if args.model=='ResidualModel' :
-        if not args.decompose_based:
-            args.model ='DLinear'
-    run_hw3(args, fix_seed)
+    # run_hw4(args, fix_seed)
 
-    # for args.data_path in [
-    #     './dataset/ETT/ETTh1.csv','./dataset/ETT/ETTh2.csv',
-    #     './dataset/ETT/ETTm1.csv','./dataset/ETT/ETTm2.csv']:
-    #     args=set_args_for_dataset(args)
-    #     print()
-    #     print('data_path =',args.data_path,'period =',args.period)
-        # args.model = 'ResidualModel'
-        # for args.theta_list in [[0],[0.5],[1],[2]]:
-        # for args.theta_list in [[0.98],[0.99],[1],[1.01],[1.02]]:
-        #     print('theta_list =',args.theta_list)
-        #     run_hw3(args,fix_seed)
+    if args.hw4_run_SOTA:
+        for args.data_path in [
+            './dataset/ETT/ETTh1.csv',
+            './dataset/ETT/ETTh2.csv',
+            './dataset/ETT/ETTm1.csv',
+            './dataset/ETT/ETTm2.csv'
+            ]:
+            args=set_args_for_dataset(args)
+            print()
+            print('data_path =',args.data_path,'period =',args.period)
 
-
-        # args.decompose_based = False
-        # for args.model in ['NLinear','Autoregression']:#'DLinear',
-        # # for args.model,args.individual in [
-        # #     ('Autoregression',True),
-        # #     ('NLinear',False),
-        # #     ('NLinear',True),
-        # #     ('DLinear',False),
-        # #     ('DLinear',True),]:#
-        #     print()
-        #     end='\n'
-        #     end=', '
-        #     print("Model:",args.model,end=end)#
-        #     print("individual =",args.individual,"decompose_based=",args.decompose_based)
-        #     for args.decompose in ['STL']:#,'X11','MA',
-        #         for args.residual in [True]:#,False
-        #             print("Decompose : ",args.decompose,end=end)
-        #             print('resid =', args.residual,end=end)
-        #             for args.pred_len in [96]:#96, 192, 336, 720
-        #                 print('pred_len =',args.pred_len,end=end)
-        #                 # for args.use_spirit in [True]:#,False
-        #                 #     print('use_spirit =',args.use_spirit)
-        #                 #     for args.rank in [7,6,4]:#
-        #                 #         for args.spirit_alpha in [0.98]:#0.99,
-        #                 #             print('rank =',args.rank,end=' ')
-        #                 #             print('spirit_alpha =',args.spirit_alpha,end=' ')
-        #                 #             xxx(args,fix_seed)
-        #                 # args.use_spirit = False
-        #                 # print('use_spirit =',args.use_spirit,end=' ')
-        #                 run_hw3(args,fix_seed)
-        #                 print()
-
-    # if args.model=='ResidualModel':
-    #     if args.decompose_based:
-    #         args.individual=True
-    #         for args.trend_model,args.seasonal_model in [
-    #             ('Autoregression','Autoregression'),
-    #             # ('NLinear','NLinear'),
-    #             # ('Autoregression','NLinear'),
-    #             # ('NLinear','Autoregression'),
-    #         ]:#
-    #
-    #             end='\n'
-    #             end=', '
-    #             print("Model:",args.trend_model,"+",args.seasonal_model)
-    #             # print("individual =",args.individual,"decompose_based=",args.decompose_based)
-    #             for args.decompose in ['STL']:#,'X11''MA',
-    #                 for args.residual in [True]:#,False
-    #                     print("Decompose : ",args.decompose,end=end)
-    #                     print('resid =', args.residual)
-    #                     for args.pred_len in [96, 192, 336, 720]:#96
-    #                         # print('pred_len =',args.pred_len,end=end)
-    #                         run_hw3(args,fix_seed)
-    #
-    #     else:
-    #         args.individual=False
-    #         args.model='DLinear'
-    #         end = ', '
-    #         for args.D_N in [True]:#,False
-    #             print("Model:", args.model,"D_N=",args.D_N)
-    #             for args.decompose in [ 'STL']:  # ,'X11''MA',
-    #                 for args.residual in [True]:  #, False
-    #                     print("Decompose : ", args.decompose, end=end)
-    #                     print('resid =', args.residual)
-    #                     for args.pred_len in [96, 192, 336, 720]:  # 96
-    #                         # print('pred_len =', args.pred_len, end=end)
-    #                         run_hw3(args, fix_seed)
+            args.decompose_based = False
+            # for args.model in ['NLinear','Autoregression']:#'DLinear',
+            for args.model,args.individual in [
+                # ('Autoregression',True),
+                # ('NLinear',False),
+                # ('NLinear',True),
+                # ('DLinear',False),
+                ('DLinear',True),]:#
+                # print()
+                end='\n'
+                end=', '
+                print("Model:",args.model,end=end)#
+                print("individual =",args.individual)#,"decompose_based=",args.decompose_based
+                for args.decompose in ['STL']:#,'X11','MA',
+                    for args.residual in [True]:#,False
+                        print("Decompose : ",args.decompose,end=end)
+                        print('resid =', args.residual,end=end)
+                        for args.pred_len in [96, 192, 336, 720]:#96
+                            # print('pred_len =',args.pred_len,end=end)#
+                            # for args.use_spirit in [True]:#,False
+                            #     print('use_spirit =',args.use_spirit)
+                            #     for args.rank in [7,6,4]:#
+                            #         for args.spirit_alpha in [0.98]:#0.99,
+                            #             print('rank =',args.rank,end=' ')
+                            #             print('spirit_alpha =',args.spirit_alpha,end=' ')
+                            #             xxx(args,fix_seed)
+                            run_hw4(args,fix_seed)
+    else:
+        run_hw4(args, fix_seed)
