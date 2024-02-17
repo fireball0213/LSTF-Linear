@@ -81,17 +81,18 @@ from models.base import MLForecastModel
 
 from concurrent.futures import ProcessPoolExecutor
 
-# class ARIMAForecast(MLForecastModel):
+# class ARIMAForecast():
 #     def __init__(self, args) -> None:
 #         super().__init__()
 #         self.args = args
+#         self.pred_len = args.pred_len
 #
-#     def _fit(self, X: np.ndarray):
+#     def fit(self, X: np.ndarray,X_trend,X_seasonal):
 #         # 在这个方法中，我们不执行实际的拟合过程
 #         # 因为我们将在_forecast方法中为每个序列拟合模型
 #         pass
-#     def _forecast(self, X: np.ndarray, pred_len: int) -> np.ndarray:
-#         forecasts = np.zeros((X.shape[0], pred_len))
+#     def forecast(self, X: np.ndarray,X_trend,X_seasonal) -> np.ndarray:
+#         forecasts = np.zeros((X.shape[0], self.pred_len))
 #
 #         # 循环遍历每个序列进行独立模型的拟合和预测
 #         for i in tqdm.tqdm(range(X.shape[0])):
@@ -100,25 +101,20 @@ from concurrent.futures import ProcessPoolExecutor
 #             # 创建并拟合模型
 #             model = SARIMAX(current_sequence, order=(1, 1, 1), seasonal_order=(2, 0, 0, self.args.period)).fit(disp=False)
 #             # 进行预测
-#             single_forecast = model.forecast(steps=pred_len)
+#             single_forecast = model.forecast(steps=self.pred_len)
 #             forecasts[i, :] = single_forecast
 #
 #         return forecasts
-#
-#     def forecast(self, X: np.ndarray, pred_len: int) -> np.ndarray:
-#         # 重写forecast方法以符合基类定义
-#         if not isinstance(X, np.ndarray):
-#             raise ValueError("Input must be a numpy array.")
-#         return self._forecast(X, pred_len)
 
 
-class ARIMAForecast(MLForecastModel):
+
+class ARIMAForecast():
     def __init__(self, args) -> None:
         super().__init__()
         self.args = args
         self.pred_len = args.pred_len
 
-    def _fit(self, X: np.ndarray):
+    def fit(self, X: np.ndarray,X_trend,X_seasonal):
         # 在这个方法中，我们不执行实际的拟合过程
         # 因为我们将在_forecast方法中为每个序列拟合模型
         pass
@@ -128,12 +124,10 @@ class ARIMAForecast(MLForecastModel):
         single_forecast = model.forecast(steps=pred_len)
         return single_forecast
 
-    def _forecast(self, X: np.ndarray) -> np.ndarray:
+    def forecast(self, X: np.ndarray,X_trend,X_seasonal) -> np.ndarray:
         sequences_data = [(X[i, :], self.pred_len, self.args.period) for i in range(X.shape[0])]
-
         forecasts = np.zeros((X.shape[0], self.pred_len))
 
-        # 使用多进程进行并行计算
         with ProcessPoolExecutor() as executor:
             results = list(
                 tqdm.tqdm(executor.map(self.fit_forecast_single_sequence, sequences_data), total=len(sequences_data)))
@@ -143,7 +137,3 @@ class ARIMAForecast(MLForecastModel):
 
         return forecasts
 
-    def forecast(self, X: np.ndarray) -> np.ndarray:
-        if not isinstance(X, np.ndarray):
-            raise ValueError("Input must be a numpy array.")
-        return self._forecast(X)

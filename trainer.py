@@ -8,25 +8,9 @@ import torch
 from torch.utils.data import DataLoader
 from dataset.data_tools import StandardScaler
 import os
-def get_data_from_flag(data,flag):
-    if flag == None:
-        return data.data_x
-    elif flag == 'trend':
-        return data.trend
-    elif flag == 'seasonal':
-        return data.seasonal
-
-def get_batch_output_from_flag(model, data,data_trend, data_seasonal, data_res,flag):
-    if flag == None:
-        return model(data, data_trend, data_seasonal, data_res)
-    # #分开预测，则不考虑已分开的DLinear
-    elif flag == 'trend':
-        return model(data_trend)
-    elif flag == 'seasonal':
-        return model(data_seasonal)
 
 class MLTrainer:
-    def __init__(self, args,model, dataset,device='cpu'):
+    def __init__(self, args,model, dataset):
         self.model = model
         self.transform = get_transform(args)
         self.dataset = dataset
@@ -45,6 +29,35 @@ class MLTrainer:
             os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # 设置当前使用的GPU设备为第0块GPU
             self.model = self.model.cuda()
 
+    def _get_slide_data(self,data):
+        if self.target == 'OT':
+            subseries = sliding_window_view(data.ravel(), self.seq_len + self.pred_len)
+            test_X = subseries[:, :self.seq_len]
+            test_Y = subseries[:, self.seq_len:]
+        elif self.target == 'Multi':
+            subseries_list = [sliding_window_view(data[:, i], self.seq_len + self.pred_len) for i in
+                              range(self.channels)]
+            subseries = np.stack(subseries_list, axis=-1)
+            test_X = subseries[:, :self.seq_len, :]
+            test_Y = subseries[:, self.seq_len:, :]
+        return test_X, test_Y
+
+    def _get_batch_output_from_flag(self,model, data, data_trend, data_seasonal, data_res, flag):
+        if flag == None:
+            return model(data, data_trend, data_seasonal, data_res)
+        # #分开预测，则不考虑已分开的DLinear
+        elif flag == 'trend':
+            return model(data_trend)
+        elif flag == 'seasonal':
+            return model(data_seasonal)
+
+    def _get_data_from_flag(self,data, flag=None):
+        if flag == None:
+            return data.data_x
+        elif flag == 'trend':
+            return data.trend
+        elif flag == 'seasonal':
+            return data.seasonal
 
     def train(self,flag=None):
         if isinstance(self.model, torch.nn.Module):#已归一化、计算独热编码
@@ -55,13 +68,15 @@ class MLTrainer:
                 data_trend, data_seasonal,data_res = data_trend.to(self.device), data_seasonal.to(self.device),data_res.to(self.device)
                 self.model.fit(data, target, data_trend, data_seasonal,data_res)
         else:
-            train_X= get_data_from_flag(self.dataset,flag)
-            if self.freq_denoise is not None:#对训练数据的选定列去噪
-                train_X=self.freq_denoise(train_X, self.args)
-            t_X = self.transform.transform(train_X,update=True)
+            train_X_trend= self._get_data_from_flag(self.dataset, 'trend')
+            train_X_seasonal= self._get_data_from_flag(self.dataset, 'seasonal')
+            train_X= self._get_data_from_flag(self.dataset,flag)
+            # if self.freq_denoise is not None:#对训练数据的选定列去噪
+            #     train_X=self.freq_denoise(train_X, self.args)
+            # train_X= self.transform.transform(train_X,update=True)
             # data_vi(t_X, 200)
             # plot_fft2(train_X[0, :, -1], self.period,400)
-            self.model.fit(t_X)
+            self.model.fit(train_X,train_X_trend,train_X_seasonal)
 
     def evaluate(self, test_data,flag=None):
         if isinstance(self.model, torch.nn.Module):
@@ -75,7 +90,7 @@ class MLTrainer:
                     test_Y.append(target_true.cpu())
 
                     data_trend, data_seasonal, data_res = data_trend.to(self.device), data_seasonal.to(self.device), data_res.to(self.device)
-                    output = get_batch_output_from_flag(self.model, data, data_trend, data_seasonal, data_res, flag)
+                    output = self._get_batch_output_from_flag(self.model, data, data_trend, data_seasonal, data_res, flag)
                     fore.append(output.cpu())
 
             # 聚合所有批次的预测结果和真实标签
@@ -89,20 +104,19 @@ class MLTrainer:
                 fore = self.dataset.spirit.inverse_transform(fore)
                 # test_Y = self.dataset.spirit.inverse_transform(test_Y)
         else:
-            test_data = get_data_from_flag(test_data, flag)
-            if self.target=='OT':
-                subseries=sliding_window_view(test_data.ravel(), self.seq_len + self.pred_len)
-                test_X = subseries[:, :self.seq_len]
-                test_Y = subseries[:, self.seq_len:]
-            elif self.target=='Multi':
-                subseries_list = [sliding_window_view(test_data[:, i], self.seq_len + self.pred_len) for i in range(self.channels)]
-                subseries = np.stack(subseries_list, axis=-1)
-                test_X = subseries[:, :self.seq_len, :]
-                test_Y = subseries[:, self.seq_len:, :]
-            test_X = self.transform.transform(test_X)
-            fore = self.model.forecast(test_X)
-            # test_Y = self.transform.transform(test_Y)
-            fore = self.transform.inverse_transform(fore)
+            test_data_original= self._get_data_from_flag(test_data)
+            test_data_trend= self._get_data_from_flag(test_data, 'trend')
+            test_data_seasonal= self._get_data_from_flag(test_data, 'seasonal')
+            test_data = self._get_data_from_flag(test_data, flag)
+
+            _,test_Y=self._get_slide_data(test_data_original)
+            test_X,_=self._get_slide_data(test_data)
+            test_X_trend, _= self._get_slide_data(test_data_trend)
+            test_X_seasonal, _ = self._get_slide_data(test_data_seasonal)
+
+            # test_X = self.transform.transform(test_X)
+            fore = self.model.forecast(test_X,test_X_trend,test_X_seasonal)
+            # fore = self.transform.inverse_transform(fore)
 
 
         return fore, test_Y

@@ -42,6 +42,7 @@ def get_args():
     parser.add_argument('--dataset', type=str, default='ETT', help='dataset type, options: [M4, ETT, Custom]')
     # parser.add_argument('--dataset', type=str, default='Custom', help='dataset type, options: [M4, ETT, Custom]')
 
+    parser.add_argument('--model', type=str, default='DLinear', help='model name')
     # parser.add_argument('--target', type=str, default='OT', help='target feature')
     parser.add_argument('--target', type=str, default='Multi', help='target feature')
     parser.add_argument('--ratio_train', type=int, default=0.6, help='train dataset length')
@@ -54,19 +55,11 @@ def get_args():
     parser.add_argument('--pred_len', type=int, default=96, help='prediction sequence length')
 
 
-    # model define
-    # parser.add_argument('--model', type=str, default='Autoregression', help='model name')#, required=True
-    # parser.add_argument('--model', type=str, default='TsfKNN', help='model name')#, required=True
-    parser.add_argument('--model', type=str, default='NLinear', help='model name')
-    # parser.add_argument('--model', type=str, default='DLinear', help='model name')
-
     # Dlinear define
-    parser.add_argument('--channels', type=int, default=7,
-                        help='encoder input size')  # DLinear with --individual, use this hyperparameter as the number of channels
-    parser.add_argument('--individual', type=bool, default=False, help='individual training for each channel')
-    # parser.add_argument('--use_nn_loader', type=bool, default=True, help='Use data loader for PyTorch')
-    parser.add_argument('--use_nn_loader', type=bool, default=False, help='Use data loader for PyTorch')
+    parser.add_argument('--channels', type=int, default=7, help='encoder input size')
+    parser.add_argument('--individual', action='store_true', help='individual training for each channel')
     parser.add_argument('--batch_size', type=int, default=64, help='Batch size for training')
+    parser.add_argument('--D_N', action='store_true', help='Use DLinear and NLinear together')
 
     # decompose method
     parser.add_argument('--decompose_all', type=bool, default=True, help='decompose all series，使用完整序列的分解')
@@ -74,12 +67,12 @@ def get_args():
     parser.add_argument('--decompose', type=str, default='STL')
 
     #ThetaMethod define
-    parser.add_argument('--theta', type=float, default=0, help='Theta parameter for the ThetaMethod')
+    parser.add_argument('--theta_list', type=list, default=[0,0.5,1, 2], help='theta used in ThetaMethod')
 
     #ResidualModel define
     parser.add_argument('--trend_model', type=str, default='Autoregression', help='trend model for ResidualModel')
     parser.add_argument('--seasonal_model', type=str, default='Autoregression', help='seasonal model for ResidualModel')
-    parser.add_argument('--decompose_based', type=bool, default=False, help='使用两种模型分别预测')
+    parser.add_argument('--decompose_based', action='store_true', help='使用两种模型分别预测')
 
     # EMA define
     parser.add_argument('--alpha', type=float, default=0.9, help='alpha used in ExponentialMovingAverage')
@@ -122,7 +115,7 @@ def get_args():
     parser.add_argument('--wavelet', type=str, default='db1', help='wavelet used in wavelet')
 
     #spirit
-    parser.add_argument('--use_spirit', default=False, help='Whether to use SPIRIT algorithm')
+    parser.add_argument('--use_spirit', action='store_true', help='Whether to use SPIRIT algorithm')
     parser.add_argument('--rank', type=int, default=7, help='Target dimensionality for SPIRIT algorithm')
     parser.add_argument('--spirit_alpha', type=float, default=0.98, help='Forgetting factor for SPIRIT')
 
@@ -150,8 +143,20 @@ def get_model(args,key=None):
         return model_dict[key](args)
     return model_dict[args.model](args)
 
+def set_args_for_dataset(args):
+    if args.data_path=="./dataset/ETT/ETTh1.csv" or args.data_path=="./dataset/ETT/ETTh2.csv":
+        args.seq_len = 96
+        args.pred_len = 96
+        args.period = 24
+        args.frequency='h'
+    elif args.data_path=="./dataset/ETT/ETTm1.csv" or args.data_path=="./dataset/ETT/ETTm2.csv":
+        args.seq_len = 96
+        args.pred_len = 96
+        args.period = 96
+        args.frequency = 'm'
+    return args
 
-def run_hw2(args,fix_seed):
+def run_hw3(args,fix_seed):
 
     random.seed(fix_seed)
     np.random.seed(fix_seed)
@@ -181,26 +186,29 @@ def run_hw2(args,fix_seed):
 
         # data_visualize(dataset.data, 5000)
         # plt.show()
+        flag = args.model
 
         fore, test_Y = trainer.evaluate(test_dataset)
-    else:  # 使用两个模型分别预测
+    else:
+        flag = args.trend_model + args.seasonal_model# 使用两个模型分别预测
+
         trainer_trend = MLTrainer(args, model=trend_model, dataset=train_dataset)
         trainer_trend.train(flag='trend')
 
         trainer_seasonal = MLTrainer(args, model=seasonal_model, dataset=train_dataset)
         trainer_seasonal.train(flag='seasonal')
 
-        fore_trend, test_Y = trainer_trend.evaluate(test_dataset, flag='trend')
-        fore_seasonal, test_Y = trainer_seasonal.evaluate(test_dataset, flag='seasonal')
-        fore = fore_trend.reshape(-1, args.pred_len, args.channels) + fore_seasonal.reshape(-1, args.pred_len,
-                                                                                            args.channels)
-        test_Y = test_Y.reshape(-1, args.pred_len, args.channels)
+        fore_trend, test_Y_trend = trainer_trend.evaluate(test_dataset, flag='trend')
+        fore_seasonal, test_Y_seasonal = trainer_seasonal.evaluate(test_dataset, flag='seasonal')
+        fore = fore_trend.reshape(-1, args.pred_len, args.channels) + fore_seasonal.reshape(-1, args.pred_len,args.channels)
+        test_Y = test_Y_trend.reshape(-1, args.pred_len, args.channels) #+ test_Y_seasonal.reshape(-1, args.pred_len,args.channels)
 
     evaluate_metrics(fore, test_Y, args)#,flag="多变量评估"
 
+
     # plot_forecast(fore, test_Y, 500)  # 看所有预测结果上的第一个数据点预测的效果
-    # plot_day_forecast(fore, test_Y,flag=args.model)  # 看某日24h的预测结果，每个子图是predict_len个数据点
-    plot_random_forecast(fore, test_Y,flag=args.model)  # 看随机预测结果上的predict_len个数据点预测的效果
+    # plot_day_forecast(fore, test_Y,flag=flag)  # 看某日24h的预测结果，每个子图是pred_len个数据点
+    plot_random_forecast(fore, test_Y,flag=flag)  # 看随机预测结果上的pred_len个数据点预测的效果
     plt.show()
 
     # evaluate_metrics(fore[:, :, -1], test_Y[:, :, -1], args,flag="OT变量评估")
@@ -212,14 +220,15 @@ if __name__ == '__main__':
     args = get_args()
     # args.decompose_based = True
     # args.model = 'ResidualModel'
-    args.model = 'DLinear'
+    # args.model = 'DLinear'
     # args.model = 'NLinear'
-    # args.model = 'Linear_NN'
+    # args.model = 'Autoregression'
     # args.model = 'ThetaMethod'
+    # args.model = 'ARIMA'
     # args.model = 'TsfKNN'
 
-    # args.trend_model = 'Autoregression'
-    # args.seasonal_model = 'Autoregression'
+    args.trend_model = 'Autoregression'
+    args.seasonal_model = 'Autoregression'
     # args.trend_model = 'NLinear'
     # args.seasonal_model = 'NLinear'
 
@@ -228,29 +237,87 @@ if __name__ == '__main__':
     # args.target = 'OT'
     # args.batch_size = 1
 
-    run_hw2(args,fix_seed)
+    if args.model=='ResidualModel' :
+        if not args.decompose_based:
+            args.model ='DLinear'
+    run_hw3(args, fix_seed)
 
-    # for args.model in ['DLinear','NLinear']:#
-    # # for args.model,args.decompose_based in [('Autoregression',False),('Linear_NN',False),('NLinear',False),('DLinear',False)]:#,('NLinear',True)('DLinear',False),
-    #     for args.individual in [False]:#,True
-    #         print()
-    #         end='\n'
-    #         end=', '
-    #         print("Model:",args.model)#,end=end
-    #         print("individual =",args.individual,end=end)
-    #         for args.decompose in ['MA','STL']:#,'X11'
-    #             for args.residual in [True,False]:#
-    #                 print("Decompose : ",args.decompose,end=end)
-    #                 print('resid =', args.residual,end=end)
-    #                 for args.pred_len in [96]:#96, 192, 336, 720
-    #                     print('pred_len =',args.pred_len,end=end)
-    #                     # for args.use_spirit in [True]:#,False
-    #                     #     print('use_spirit =',args.use_spirit)
-    #                     #     for args.rank in [7,6,4]:#
-    #                     #         for args.spirit_alpha in [0.98]:#0.99,
-    #                     #             print('rank =',args.rank,end=' ')
-    #                     #             print('spirit_alpha =',args.spirit_alpha,end=' ')
-    #                     #             xxx(args,fix_seed)
-    #                     # args.use_spirit = False
-    #                     # print('use_spirit =',args.use_spirit,end=' ')
-    #                     run_hw2(args,fix_seed)
+    # for args.data_path in [
+    #     './dataset/ETT/ETTh1.csv','./dataset/ETT/ETTh2.csv',
+    #     './dataset/ETT/ETTm1.csv','./dataset/ETT/ETTm2.csv']:
+    #     args=set_args_for_dataset(args)
+    #     print()
+    #     print('data_path =',args.data_path,'period =',args.period)
+        # args.model = 'ResidualModel'
+        # for args.theta_list in [[0],[0.5],[1],[2]]:
+        # for args.theta_list in [[0.98],[0.99],[1],[1.01],[1.02]]:
+        #     print('theta_list =',args.theta_list)
+        #     run_hw3(args,fix_seed)
+
+
+        # args.decompose_based = False
+        # for args.model in ['NLinear','Autoregression']:#'DLinear',
+        # # for args.model,args.individual in [
+        # #     ('Autoregression',True),
+        # #     ('NLinear',False),
+        # #     ('NLinear',True),
+        # #     ('DLinear',False),
+        # #     ('DLinear',True),]:#
+        #     print()
+        #     end='\n'
+        #     end=', '
+        #     print("Model:",args.model,end=end)#
+        #     print("individual =",args.individual,"decompose_based=",args.decompose_based)
+        #     for args.decompose in ['STL']:#,'X11','MA',
+        #         for args.residual in [True]:#,False
+        #             print("Decompose : ",args.decompose,end=end)
+        #             print('resid =', args.residual,end=end)
+        #             for args.pred_len in [96]:#96, 192, 336, 720
+        #                 print('pred_len =',args.pred_len,end=end)
+        #                 # for args.use_spirit in [True]:#,False
+        #                 #     print('use_spirit =',args.use_spirit)
+        #                 #     for args.rank in [7,6,4]:#
+        #                 #         for args.spirit_alpha in [0.98]:#0.99,
+        #                 #             print('rank =',args.rank,end=' ')
+        #                 #             print('spirit_alpha =',args.spirit_alpha,end=' ')
+        #                 #             xxx(args,fix_seed)
+        #                 # args.use_spirit = False
+        #                 # print('use_spirit =',args.use_spirit,end=' ')
+        #                 run_hw3(args,fix_seed)
+        #                 print()
+
+    # if args.model=='ResidualModel':
+    #     if args.decompose_based:
+    #         args.individual=True
+    #         for args.trend_model,args.seasonal_model in [
+    #             ('Autoregression','Autoregression'),
+    #             # ('NLinear','NLinear'),
+    #             # ('Autoregression','NLinear'),
+    #             # ('NLinear','Autoregression'),
+    #         ]:#
+    #
+    #             end='\n'
+    #             end=', '
+    #             print("Model:",args.trend_model,"+",args.seasonal_model)
+    #             # print("individual =",args.individual,"decompose_based=",args.decompose_based)
+    #             for args.decompose in ['STL']:#,'X11''MA',
+    #                 for args.residual in [True]:#,False
+    #                     print("Decompose : ",args.decompose,end=end)
+    #                     print('resid =', args.residual)
+    #                     for args.pred_len in [96, 192, 336, 720]:#96
+    #                         # print('pred_len =',args.pred_len,end=end)
+    #                         run_hw3(args,fix_seed)
+    #
+    #     else:
+    #         args.individual=False
+    #         args.model='DLinear'
+    #         end = ', '
+    #         for args.D_N in [True]:#,False
+    #             print("Model:", args.model,"D_N=",args.D_N)
+    #             for args.decompose in [ 'STL']:  # ,'X11''MA',
+    #                 for args.residual in [True]:  #, False
+    #                     print("Decompose : ", args.decompose, end=end)
+    #                     print('resid =', args.residual)
+    #                     for args.pred_len in [96, 192, 336, 720]:  # 96
+    #                         # print('pred_len =', args.pred_len, end=end)
+    #                         run_hw3(args, fix_seed)

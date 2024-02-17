@@ -97,5 +97,6 @@ def get_one_hot_feature(data_stamp, freq):
         data_one_hot=np.array(data_one_hot.tolist())  # 将one-hot编码结果转换为numpy数组
         return data_one_hot  # 返回one-hot编码数组
     else:
-        print("unsupported freq!")  # 如果传入的频率不支持，则打印错误信息
+        # freq == "m":  # 如果频率为15分钟
+        # TODO
         return 0

@@ -47,31 +47,44 @@ class LastValueForecast(MLForecastModel):
 
 
 #一个线性回归的类，实现target列的自回归预测
-class Autoregression(MLForecastModel):
+class Autoregression():
     def __init__(self, args) -> None:
         super().__init__()
         self.seq_len=args.seq_len
         self.pred_len = args.pred_len
-        self.model = linear_model.LinearRegression()
         self.msas= args.msas
+        self.channels = args.channels
+        self.target = args.target
 
-    def _fit(self, X: np.ndarray) -> None:
-        #如果X的维度是3
-        if len(X.shape)==3:
-            X_target=X[:, :, -1]
-            if self.msas == "recursive":
-                subseries = np.concatenate(([sliding_window_view(v, self.seq_len + 1) for v in X_target]))  # 单输出迭代预测
-            elif self.msas == "MIMO":
-                subseries = np.concatenate(
-                    [sliding_window_view(v, self.seq_len + self.pred_len) for v in X_target])  # MIMO预测
+    def fit(self, X: np.ndarray,X_trend,X_seasonal) -> None:
+        if self.target == 'OT':
+            self.model = linear_model.LinearRegression()
+            if len(X.shape)==3:
+                X_target=X[:, :, -1]
+                if self.msas == "recursive":
+                    subseries = np.concatenate(([sliding_window_view(v, self.seq_len + 1) for v in X_target]))  # 单输出迭代预测
+                else:
+                    #"MIMO"
+                    subseries = np.concatenate(
+                        [sliding_window_view(v, self.seq_len + self.pred_len) for v in X_target])  # MIMO预测
+            else:
+                X_target=X.ravel()
+                subseries = sliding_window_view(X_target, self.seq_len + self.pred_len)
+            train_X = subseries[:, :self.seq_len]
+            train_Y = subseries[:, self.seq_len:]
+            self.model.fit(train_X, train_Y)
         else:
-            X_target=X.ravel()
-            subseries = sliding_window_view(X_target, self.seq_len + self.pred_len)
-        train_X = subseries[:, :self.seq_len]
-        train_Y = subseries[:, self.seq_len:]
-        self.model.fit(train_X, train_Y)
+            #'Multi'
+            # 每个channel都有一个LinearRegression模型，self.model是一个列表
+            self.model = [linear_model.LinearRegression() for _ in range(self.channels)]
+            subseries_list = [sliding_window_view(X[:, i], self.seq_len + self.pred_len) for i in range(self.channels)]
+            subseries = np.stack(subseries_list, axis=-1)
+            train_X = subseries[:, :self.seq_len, :]
+            train_Y = subseries[:, self.seq_len:, :]
+            for i in range(self.channels):
+                self.model[i].fit(train_X[:, :, i], train_Y[:, :, i])
 
-    def _forecast(self, X: np.ndarray) -> np.ndarray:
+    def forecast(self, X: np.ndarray,X_trend,X_seasonal) -> np.ndarray:
         if self.msas=="recursive":#单输出迭代预测
         #生成输出长度为pred_len的预测值，self.model只能输出1个值，所以需要将预测值一个一个的添加到X中，滑动窗口预测
         #X的维度为(num_samples, seq_len),预测值输出的维度为(num_samples, pred_len)
@@ -87,10 +100,13 @@ class Autoregression(MLForecastModel):
                 X = np.concatenate((X, pred.reshape(-1, 1)), axis=1)
             return predictions
         elif self.msas == "MIMO":
-            #MIMO预测
-            # 使用模型直接进行预测
-            current_window = X[:, -self.seq_len:]
-            predictions = self.model.predict(current_window)
+            if self.target == 'OT':
+                current_window = X[:, -self.seq_len:]
+                predictions = self.model.predict(current_window)
+            else:
+                #'Multi'
+                current_window = X[:, -self.seq_len:, :]
+                predictions = np.stack([self.model[i].predict(current_window[:, :, i]) for i in range(self.channels)], axis=-1)
             return predictions
 
 #一个指数滑动平均的类

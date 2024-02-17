@@ -103,6 +103,7 @@ class DLinear(BaseLinearModel):
         self.decompose = get_decompose(args)  # 是否考虑趋势和季节性
         self.period = args.period  # 季节性的值
         self.residual = args.residual  # 是否考虑残差
+        self.D_N= args.D_N
 
 
     def setup_layers(self):
@@ -134,37 +135,35 @@ class DLinear(BaseLinearModel):
             trend_outputs = torch.zeros(x.size(0), self.pred_len, self.channels, dtype=x.dtype, device=x.device)
             seasonal_outputs = torch.zeros(x.size(0), self.pred_len, self.channels, dtype=x.dtype, device=x.device)
             for i in range(self.channels):
-                # trend_outputs[:, :, i] = self.Linear_Trend[i](trend[:, :, i])
-                # seasonal_outputs[:, :, i] = self.Linear_Seasonal[i](seasonal[:, :, i])
                 trend_channel = trend[:, :, i]
                 seasonal_channel = seasonal[:, :, i]
+                if self.D_N:
+                    trend_seq_last = trend_channel[:, -1:]
+                    seasonal_seq_last = seasonal_channel[:, -1:]
+                    trend_channel = trend_channel - trend_seq_last
+                    seasonal_channel = seasonal_channel - seasonal_seq_last
+                    trend_outputs[:, :, i] = self.Linear_Trend[i](trend_channel) + trend_seq_last
+                    seasonal_outputs[:, :, i] = self.Linear_Seasonal[i](seasonal_channel) + seasonal_seq_last
+                else:
+                    trend_outputs[:, :, i] = self.Linear_Trend[i](trend_channel)
+                    seasonal_outputs[:, :, i] = self.Linear_Seasonal[i](seasonal_channel)
 
-                trend_seq_last = trend_channel[:, -1:]
-                seasonal_seq_last = seasonal_channel[:, -1:]
-
-                # trend_channel = trend_channel - trend_seq_last
-                # seasonal_channel = seasonal_channel - seasonal_seq_last
-
-                trend_outputs[:, :, i] = self.Linear_Trend[i](trend_channel)
-                seasonal_outputs[:, :, i] = self.Linear_Seasonal[i](seasonal_channel)
-
-                # trend_outputs[:, :, i] = trend_outputs[:, :, i] + trend_seq_last
-                # seasonal_outputs[:, :, i] = seasonal_outputs[:, :, i] + seasonal_seq_last
         else:
-            trend_seq_last = trend[:, -1:,:]
-            seasonal_seq_last = seasonal[:, -1:,:]
+            if self.D_N:
+                trend_seq_last = trend[:, -1:, :]
+                seasonal_seq_last = seasonal[:, -1:, :]
+                trend = trend - trend_seq_last
+                seasonal = seasonal - seasonal_seq_last
+                trend = trend.view(x.size(0), -1)
+                seasonal = seasonal.view(x.size(0), -1)
+                trend_outputs = self.Linear_Trend(trend).view(x.size(0), self.pred_len, self.channels)+ trend_seq_last
+                seasonal_outputs = self.Linear_Seasonal(seasonal).view(x.size(0), self.pred_len, self.channels)+ seasonal_seq_last
 
-            trend = trend - trend_seq_last
-            seasonal = seasonal - seasonal_seq_last
-
-            trend = trend.view(x.size(0), -1)
-            seasonal = seasonal.view(x.size(0), -1)
-
-            trend_outputs = self.Linear_Trend(trend).view(x.size(0), self.pred_len, self.channels)
-            seasonal_outputs = self.Linear_Seasonal(seasonal).view(x.size(0), self.pred_len, self.channels)
-
-            trend_outputs = trend_outputs + trend_seq_last
-            seasonal_outputs = seasonal_outputs + seasonal_seq_last
+            else:
+                trend = trend.view(x.size(0), -1)
+                seasonal = seasonal.view(x.size(0), -1)
+                trend_outputs = self.Linear_Trend(trend).view(x.size(0), self.pred_len, self.channels)
+                seasonal_outputs = self.Linear_Seasonal(seasonal).view(x.size(0), self.pred_len, self.channels)
 
         # 合并趋势和季节性分量的预测结果
         outputs = trend_outputs + seasonal_outputs

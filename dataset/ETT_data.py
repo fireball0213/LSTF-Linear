@@ -131,10 +131,10 @@ class Dataset_ETT_hour(Dataset):
         self.data_y = self.data_x
         self.data_z = self.data_x
 
-        df_stamp = df_raw[['date']][start:end]
-        df_stamp['date'] = pd.to_datetime(df_stamp.date)
-        self.data_stamp = time_features(df_stamp, timeenc=self.timeenc, freq=self.freq)#月-日-星期-小时
-        self.data_one_hot = get_one_hot_feature(self.data_stamp, freq=self.freq)
+        # df_stamp = df_raw[['date']][start:end]
+        # df_stamp['date'] = pd.to_datetime(df_stamp.date)
+        # self.data_stamp = time_features(df_stamp, timeenc=self.timeenc, freq=self.freq)#月-日-星期-小时
+        # self.data_one_hot = get_one_hot_feature(self.data_stamp, freq=self.freq)
 
         if self.args.use_spirit:
             self.spirit = SPIRITModel(self.args)
@@ -148,11 +148,9 @@ class Dataset_ETT_hour(Dataset):
             self.data_y = self.data_x
             # self.data_z = self.data_x#在spirit变化后的数据上评估
             plot_spirit(self.spirit, self.data_train, self.data_test,self.data_x,self.args.rank, self.flag)
-        #
-        # 分解
+
         if self.decompose is not None:
             self.trend, self.seasonal, self.resid = self.decompose(self.data_x, self.period,self.residual)
-            # self.y_trend, self.y_seasonal, self.y_resid = self.decompose(self.data_y, self.period,self.residual)
             # plot_decompose(self.data_x, self.trend, self.seasonal, self.resid, 0, 200, 'whole decompose_' + str(self.flag))
 
     def __getitem__(self, index):
@@ -166,17 +164,13 @@ class Dataset_ETT_hour(Dataset):
         seq_z= self.data_z[r_begin:r_end]
         # seq_x_mark = self.data_stamp[s_begin:s_end].reshape(-1, self.window, 4)
         # seq_y_mark = self.data_stamp[r_begin:r_end].reshape(-1, self.window, 4)
-        seq_x_mark = self.data_one_hot[s_begin:s_end:self.window].reshape(-1, 19)
-        seq_y_mark = self.data_one_hot[r_begin:r_end:self.window].reshape(-1, 19)
+        # seq_x_mark = self.data_one_hot[s_begin:s_end:self.window].reshape(-1, 19)
+        # seq_y_mark = self.data_one_hot[r_begin:r_end:self.window].reshape(-1, 19)
+        seq_x_mark, seq_y_mark=0,0
 
         seq_x_trend = self.trend[s_begin:s_end].reshape(-1,self.channel)
         seq_x_seasonal = self.seasonal[s_begin:s_end].reshape(-1,self.channel)
         seq_x_resid = self.resid[s_begin:s_end].reshape(-1,self.channel)
-
-        # seq_y_trend = self.y_trend[r_begin:r_end].reshape(-1,self.channel)
-        # seq_y_seasonal = self.y_seasonal[r_begin:r_end].reshape(-1,self.channel)
-        # seq_y_resid = self.y_resid[r_begin:r_end].reshape(-1,self.channel)
-
 
         return seq_x, seq_y, seq_z,seq_x_mark, seq_y_mark, seq_x_trend, seq_x_seasonal, seq_x_resid
 
