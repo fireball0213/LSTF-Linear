@@ -23,6 +23,7 @@ class MLTrainer:
         self.pred_len = args.pred_len
         self.decompose_all = args.decompose_all
         self.target = args.target
+        self.use_date = args.use_date
 
         if isinstance(self.model, torch.nn.Module):
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -63,7 +64,7 @@ class MLTrainer:
         if isinstance(self.model, torch.nn.Module):#已归一化、计算独热编码
             self.model.train()
             train_loader = DataLoader(self.dataset, batch_size=self.args.batch_size, shuffle=True)
-            for data, target,_, _, _,data_trend, data_seasonal,data_res in train_loader:
+            for data, target,_, date_x, date_y,data_trend, data_seasonal,data_res in train_loader:
                 data, target = data.to(self.device), target.to(self.device)
                 data_trend, data_seasonal,data_res = data_trend.to(self.device), data_seasonal.to(self.device),data_res.to(self.device)
                 self.model.fit(data, target, data_trend, data_seasonal,data_res)
@@ -91,6 +92,8 @@ class MLTrainer:
 
                     data_trend, data_seasonal, data_res = data_trend.to(self.device), data_seasonal.to(self.device), data_res.to(self.device)
                     output = self._get_batch_output_from_flag(self.model, data, data_trend, data_seasonal, data_res, flag)
+                    if self.use_date:
+                        output = output[:, :self.seq_len, :]
                     fore.append(output.cpu())
 
             # 聚合所有批次的预测结果和真实标签

@@ -40,9 +40,9 @@ def time_features(dates, timeenc=1, freq='h'):
         dates['minute'] = dates.date.apply(lambda row: row.minute, 1)  # 提取分钟
         dates['minute'] = dates.minute.map(lambda x: x // 15)  # 将分钟映射到0-3表示15分钟的一个区间
         freq_map = {
-            'y': [], 'm': ['month'], 'w': ['month'], 'd': ['month', 'day', 'weekday'],
+            'y': [], 'M': ['month'], 'w': ['month'], 'd': ['month', 'day', 'weekday'],
             'b': ['month', 'day', 'weekday'], 'h': ['month', 'day', 'weekday', 'hour'],
-            't': ['month', 'day', 'weekday', 'hour', 'minute'],
+            'm': ['month', 'day', 'weekday', 'hour', 'minute'],
         }
         return dates[freq_map[freq.lower()]].values  # 返回对应频率的时间特征值
     # if timeenc==1:
@@ -89,14 +89,13 @@ def get_one_hot(index, size):
 
 # 定义一个函数用于获得数据的one-hot特征
 def get_one_hot_feature(data_stamp, freq):
-    if freq == "h":  # 如果频率为小时
+    if freq == "h" or 'm':  # 如果频率为小时\频率为15分钟
         data_one_hot = np.hstack((data_stamp[:, :1], data_stamp[:, 2:3] + 1))  # 处理数据获取one-hot编码需要的部分
         func_ = np.frompyfunc(get_one_hot, 2, 1)  # 使用numpy的frompyfunc函数创建one-hot转换函数
-        data_one_hot = func_(data_one_hot, [12, 7])  # 应用转换函数获取one-hot编码
-        data_one_hot=data_one_hot[:,0]+data_one_hot[:,1]  # 合并one-hot编码结果
-        data_one_hot=np.array(data_one_hot.tolist())  # 将one-hot编码结果转换为numpy数组
-        return data_one_hot  # 返回one-hot编码数组
+        data_one_hots = func_(data_one_hot, [12, 7])  # 应用转换函数获取one-hot编码
+        one_hot=data_one_hots[:,0]+data_one_hots[:,1]  # 合并one-hot编码结果
+        one_hot=np.array(one_hot.tolist())  # 将one-hot编码结果转换为numpy数组
+        return one_hot  # 返回one-hot编码数组
     else:
-        # freq == "m":  # 如果频率为15分钟
-        # TODO
-        return 0
+        print("freq is not supported")
+        return None

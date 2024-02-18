@@ -57,9 +57,10 @@ def get_args():
 
     # Dlinear define
     parser.add_argument('--channels', type=int, default=7, help='encoder input size')
-    parser.add_argument('--individual', action='store_true', help='individual training for each channel')
     parser.add_argument('--batch_size', type=int, default=64, help='Batch size for training')
+    parser.add_argument('--individual', action='store_true', help='individual training for each channel')
     parser.add_argument('--D_N', action='store_true', help='Use DLinear and NLinear together')
+    parser.add_argument('--use_date', action='store_true', help='Use date feature')
 
     # decompose method
     parser.add_argument('--decompose_all', type=bool, default=True, help='decompose all series，使用完整序列的分解')
@@ -260,7 +261,6 @@ if __name__ == '__main__':
                 # ('NLinear',True),
                 # ('DLinear',False),
                 ('DLinear',True),]:#
-                # print()
                 end='\n'
                 end=', '
                 print("Model:",args.model,end=end)#
@@ -270,14 +270,22 @@ if __name__ == '__main__':
                         print("Decompose : ",args.decompose,end=end)
                         print('resid =', args.residual,end=end)
                         for args.pred_len in [96, 192, 336, 720]:#96
-                            # print('pred_len =',args.pred_len,end=end)#
-                            # for args.use_spirit in [True]:#,False
-                            #     print('use_spirit =',args.use_spirit)
-                            #     for args.rank in [7,6,4]:#
-                            #         for args.spirit_alpha in [0.98]:#0.99,
-                            #             print('rank =',args.rank,end=' ')
-                            #             print('spirit_alpha =',args.spirit_alpha,end=' ')
-                            #             xxx(args,fix_seed)
                             run_hw4(args,fix_seed)
     else:
-        run_hw4(args, fix_seed)
+        # args.data_path='./dataset/ETT/ETTm1.csv'
+        args.data_path = './dataset/ETT/ETTh1.csv'
+        args = set_args_for_dataset(args)
+        print()
+        print('data_path =', args.data_path)
+        args.D_N=True
+        args.model = 'DLinear'
+        # args.model = 'NLinear'
+        # args.use_date = True
+        for args.individual in [False,True]:#
+            for args.use_date in [False,True]:
+                print("individual =",args.individual,"use_date =",args.use_date)
+                run_hw4(args, fix_seed)
+        # args.individual=True
+
+        # args.use_date=True
+        # run_hw4(args, fix_seed)

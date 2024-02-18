@@ -53,6 +53,7 @@ class Dataset_ETT_hour(Dataset):
         self.scaler = StandardScaler()
         self.args = args
         self.residual=args.residual
+        self.use_date=args.use_date
         self.__read_data__()
 
     # def __read_data__(self):
@@ -131,10 +132,11 @@ class Dataset_ETT_hour(Dataset):
         self.data_y = self.data_x
         self.data_z = self.data_x
 
-        # df_stamp = df_raw[['date']][start:end]
-        # df_stamp['date'] = pd.to_datetime(df_stamp.date)
-        # self.data_stamp = time_features(df_stamp, timeenc=self.timeenc, freq=self.freq)#月-日-星期-小时
-        # self.data_one_hot = get_one_hot_feature(self.data_stamp, freq=self.freq)
+        if self.use_date:
+            df_stamp = df_raw[['date']][start:end]
+            df_stamp['date'] = pd.to_datetime(df_stamp.date)
+            self.data_stamp = time_features(df_stamp, timeenc=self.timeenc, freq=self.freq)#月-日-星期-小时
+            self.data_one_hot = get_one_hot_feature(self.data_stamp, freq=self.freq)
 
         if self.args.use_spirit:
             self.spirit = SPIRITModel(self.args)
@@ -162,15 +164,27 @@ class Dataset_ETT_hour(Dataset):
         seq_x = self.data_x[s_begin:s_end]
         seq_y = self.data_y[r_begin:r_end]
         seq_z= self.data_z[r_begin:r_end]
-        # seq_x_mark = self.data_stamp[s_begin:s_end].reshape(-1, self.window, 4)
-        # seq_y_mark = self.data_stamp[r_begin:r_end].reshape(-1, self.window, 4)
+        seq_x_trend = self.trend[s_begin:s_end].reshape(-1, self.channel)
+        seq_x_seasonal = self.seasonal[s_begin:s_end].reshape(-1, self.channel)
+        seq_x_resid = self.resid[s_begin:s_end].reshape(-1, self.channel)
+
+        if self.use_date:
+            seq_x_mark = self.data_one_hot[s_begin]
+            seq_y_mark = self.data_one_hot[r_begin]
+            #将seq_x_mark和seq_y_mark的维度从(19)变为(19, self.channel)，复制self.channel次
+            seq_x_marks = np.tile(seq_x_mark, (self.channel, 1)).T
+            seq_y_marks = np.tile(seq_y_mark, (self.channel, 1)).T
+            #将时间特征和数据特征合并，类型为np.ndarray，seq_x_mark的维度为(19)，seq_x的维度为(96, 7)，合并后的维度为(96+19, 7)
+            seq_x = np.concatenate((seq_x, seq_x_marks), axis=0)
+            seq_y = np.concatenate((seq_y, seq_y_marks), axis=0)
+            seq_x_trend = np.concatenate((seq_x_trend, seq_y_marks), axis=0)
+            seq_x_seasonal = np.concatenate((seq_x_seasonal, seq_y_marks), axis=0)
+            seq_x_resid = np.concatenate((seq_x_resid, seq_y_marks), axis=0)
+
         # seq_x_mark = self.data_one_hot[s_begin:s_end:self.window].reshape(-1, 19)
         # seq_y_mark = self.data_one_hot[r_begin:r_end:self.window].reshape(-1, 19)
-        seq_x_mark, seq_y_mark=0,0
-
-        seq_x_trend = self.trend[s_begin:s_end].reshape(-1,self.channel)
-        seq_x_seasonal = self.seasonal[s_begin:s_end].reshape(-1,self.channel)
-        seq_x_resid = self.resid[s_begin:s_end].reshape(-1,self.channel)
+        else:
+            seq_x_mark, seq_y_mark=0,0
 
         return seq_x, seq_y, seq_z,seq_x_mark, seq_y_mark, seq_x_trend, seq_x_seasonal, seq_x_resid
 

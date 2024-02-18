@@ -18,12 +18,14 @@ class BaseLinearModel(nn.Module):
         self.pred_len = args.pred_len
         self.channels = args.channels
         self.individual = args.individual if hasattr(args, 'individual') else False
-        self.setup_layers()
-        self.optimizer = optim.Adam(self.parameters(), lr=0.001)
-        self.criterion = nn.MSELoss()
+        self.use_date = args.use_date
         self.decompose_all = args.decompose_all
         if args.use_spirit:
             self.channels = args.rank
+
+        self.setup_layers()
+        self.optimizer = optim.Adam(self.parameters(), lr=0.001)
+        self.criterion = nn.MSELoss()
 
     def setup_layers(self):
         # 定义线性层，具体实现由子类完成
@@ -63,30 +65,36 @@ class BaseLinearModel(nn.Module):
 
 class NLinear(BaseLinearModel):
     def setup_layers(self):
-        input_features = self.seq_len * self.channels  # 确保这与你输入数据的展平形状匹配
-        output_features = self.pred_len * (1 if not self.individual else self.channels)  # 根据是否独立处理通道来设置
+        if self.use_date:
+            self.final_seq_len = self.seq_len + 19
+            self.final_pred_len = self.pred_len + 19
+        else:
+            self.final_seq_len = self.seq_len
+            self.final_pred_len = self.pred_len
 
         if self.individual:
-            self.Linear = nn.ModuleList([nn.Linear(self.seq_len, self.pred_len) for _ in range(self.channels)])
+            self.Linear = nn.ModuleList([nn.Linear(self.final_seq_len, self.final_pred_len) for _ in range(self.channels)])
         else:
             # 注意这里调整了output_features的计算方式，以适应你的具体需求
-            self.Linear = nn.Linear(input_features, output_features)
+            self.Linear = nn.Linear(self.final_seq_len * self.channels, self.final_pred_len * self.channels)
 
 
     def forward(self, x, x_trend=None, x_seasonal=None,x_res=None):
         x = x.float()
         # 提取最后一个时间步的数据并进行差分操作
-        seq_last = x[:, -1:, :].detach()
+        last_index = self.seq_len - 1
+        seq_last = x[:, last_index, :].detach()
+        seq_last=seq_last.reshape(x.size(0), 1, self.channels)
         x = x - seq_last
 
         if self.individual:
-            outputs = torch.zeros(x.size(0), self.pred_len, self.channels, dtype=x.dtype, device=x.device)
+            outputs = torch.zeros(x.size(0), self.final_pred_len, self.channels, dtype=x.dtype, device=x.device)
             for i in range(self.channels):
                 outputs[:, :, i] = self.Linear[i](x[:, :, i])
         else:
             x = x.view(x.size(0),-1)  # Flatten the input
             outputs = self.Linear(x)
-            outputs = outputs.view(x.size(0), self.pred_len, -1)
+            outputs = outputs.view(x.size(0), self.final_pred_len, -1)
         # 将差分操作的影响逆转，恢复到原始数据的相对尺度
         outputs = outputs + seq_last
 
@@ -105,15 +113,19 @@ class DLinear(BaseLinearModel):
 
 
     def setup_layers(self):
-        input_features = self.seq_len * self.channels  # 调整输入特征数以匹配多通道数据
-        output_features = self.pred_len * self.channels  # 输出特征数也需要调整以保持通道信息
+        if self.use_date:
+            self.final_seq_len = self.seq_len + 19
+            self.final_pred_len = self.pred_len + 19
+        else:
+            self.final_seq_len = self.seq_len
+            self.final_pred_len = self.pred_len
         if self.individual:
-            self.Linear_Trend = nn.ModuleList([nn.Linear(self.seq_len, self.pred_len) for _ in range(self.channels)])
-            self.Linear_Seasonal = nn.ModuleList([nn.Linear(self.seq_len, self.pred_len) for _ in range(self.channels)])
+            self.Linear_Trend = nn.ModuleList([nn.Linear(self.final_seq_len, self.final_pred_len) for _ in range(self.channels)])
+            self.Linear_Seasonal = nn.ModuleList([nn.Linear(self.final_seq_len, self.final_pred_len) for _ in range(self.channels)])
         else:
             # 为趋势和季节性分量使用单个线性层处理多通道数据
-            self.Linear_Trend = nn.Linear(input_features, output_features)
-            self.Linear_Seasonal = nn.Linear(input_features, output_features)
+            self.Linear_Trend = nn.Linear(self.final_seq_len * self.channels , self.final_pred_len * self.channels)
+            self.Linear_Seasonal = nn.Linear(self.final_seq_len * self.channels , self.final_pred_len * self.channels)
 
     def forward(self, x, x_trend=None, x_seasonal=None,x_res=None):
 
@@ -130,14 +142,15 @@ class DLinear(BaseLinearModel):
             # plot_decompose_batch(x, trend, seasonal, resid,  'DLinear')
 
         if self.individual:
-            trend_outputs = torch.zeros(x.size(0), self.pred_len, self.channels, dtype=x.dtype, device=x.device)
-            seasonal_outputs = torch.zeros(x.size(0), self.pred_len, self.channels, dtype=x.dtype, device=x.device)
+            trend_outputs = torch.zeros(x.size(0), self.final_pred_len, self.channels, dtype=x.dtype, device=x.device)
+            seasonal_outputs = torch.zeros(x.size(0), self.final_pred_len, self.channels, dtype=x.dtype, device=x.device)
             for i in range(self.channels):
                 trend_channel = trend[:, :, i]
                 seasonal_channel = seasonal[:, :, i]
                 if self.D_N:
-                    trend_seq_last = trend_channel[:, -1:]
-                    seasonal_seq_last = seasonal_channel[:, -1:]
+                    last_index = self.seq_len - 1
+                    trend_seq_last = trend_channel[:, last_index].reshape(x.size(0), 1).detach()
+                    seasonal_seq_last = seasonal_channel[:, last_index].reshape(x.size(0), 1).detach()
                     trend_channel = trend_channel - trend_seq_last
                     seasonal_channel = seasonal_channel - seasonal_seq_last
                     trend_outputs[:, :, i] = self.Linear_Trend[i](trend_channel) + trend_seq_last
@@ -148,20 +161,21 @@ class DLinear(BaseLinearModel):
 
         else:
             if self.D_N:
-                trend_seq_last = trend[:, -1:, :]
-                seasonal_seq_last = seasonal[:, -1:, :]
+                last_index = self.seq_len - 1
+                trend_seq_last = trend[:, last_index, :].reshape(x.size(0), 1, self.channels).detach()
+                seasonal_seq_last = seasonal[:, last_index, :].reshape(x.size(0), 1, self.channels).detach()
                 trend = trend - trend_seq_last
                 seasonal = seasonal - seasonal_seq_last
                 trend = trend.view(x.size(0), -1)
                 seasonal = seasonal.view(x.size(0), -1)
-                trend_outputs = self.Linear_Trend(trend).view(x.size(0), self.pred_len, self.channels)+ trend_seq_last
-                seasonal_outputs = self.Linear_Seasonal(seasonal).view(x.size(0), self.pred_len, self.channels)+ seasonal_seq_last
+                trend_outputs = self.Linear_Trend(trend).view(x.size(0), self.final_pred_len, self.channels)+ trend_seq_last
+                seasonal_outputs = self.Linear_Seasonal(seasonal).view(x.size(0), self.final_pred_len, self.channels)+ seasonal_seq_last
 
             else:
                 trend = trend.view(x.size(0), -1)
                 seasonal = seasonal.view(x.size(0), -1)
-                trend_outputs = self.Linear_Trend(trend).view(x.size(0), self.pred_len, self.channels)
-                seasonal_outputs = self.Linear_Seasonal(seasonal).view(x.size(0), self.pred_len, self.channels)
+                trend_outputs = self.Linear_Trend(trend).view(x.size(0), self.final_pred_len, self.channels)
+                seasonal_outputs = self.Linear_Seasonal(seasonal).view(x.size(0), self.final_pred_len, self.channels)
 
         # 合并趋势和季节性分量的预测结果
         outputs = trend_outputs + seasonal_outputs
