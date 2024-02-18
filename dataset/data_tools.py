@@ -88,14 +88,42 @@ def get_one_hot(index, size):
 
 
 # 定义一个函数用于获得数据的one-hot特征
-def get_one_hot_feature(data_stamp, freq):
+def get_one_hot_feature(data_stamp, freq,feature):
     if freq == "h" or 'm':  # 如果频率为小时\频率为15分钟
-        data_one_hot = np.hstack((data_stamp[:, :1], data_stamp[:, 2:3] + 1))  # 处理数据获取one-hot编码需要的部分
-        func_ = np.frompyfunc(get_one_hot, 2, 1)  # 使用numpy的frompyfunc函数创建one-hot转换函数
-        data_one_hots = func_(data_one_hot, [12, 7])  # 应用转换函数获取one-hot编码
-        one_hot=data_one_hots[:,0]+data_one_hots[:,1]  # 合并one-hot编码结果
-        one_hot=np.array(one_hot.tolist())  # 将one-hot编码结果转换为numpy数组
+        if feature=='month_week':
+            data_one_hot = np.hstack((data_stamp[:, :1], data_stamp[:, 2:3] + 1))  # 处理数据获取one-hot编码需要的部分
+            func_ = np.frompyfunc(get_one_hot, 2, 1)  # 使用numpy的frompyfunc函数创建one-hot转换函数
+            data_one_hots = func_(data_one_hot, [12, 7])  # 应用转换函数获取one-hot编码
+            one_hot=data_one_hots[:,0]+data_one_hots[:,1]  # 合并one-hot编码结果
+            one_hot = np.array(one_hot.tolist())  # 将one-hot编码结果转换为numpy数组
+        else:#'week'
+            data_one_hot =data_stamp[:, 2:3] + 1
+            data_one_hots =[get_one_hot(i[0], 7) for i in data_one_hot]  # 应用转换函数获取one-hot编码
+            # data_one_hots = get_one_hot(data_one_hot, 7)  # 应用转换函数获取one-hot编码
+            one_hot = data_one_hots
         return one_hot  # 返回one-hot编码数组
+    else:
+        print("freq is not supported")
+        return None
+
+def get_sin_cos_feature(data_stamp, freq,feature):
+    if freq == "h" or 'm':  # 如果频率为小时\频率为15分钟
+        if feature=='week':
+            week_num = data_stamp[:, 2:3] + 1
+            week = week_num * (2 * np.pi / 7)
+            week_sin = np.sin(week)
+            week_cos = np.cos(week)
+            return np.hstack((week_sin, week_cos))
+        elif feature=='month_week':
+            month_num = data_stamp[:, :1]
+            week_num = data_stamp[:, 2:3] + 1
+            month = month_num * (2 * np.pi / 12)
+            week = week_num * (2 * np.pi / 7)
+            month_sin = np.sin(month)
+            month_cos = np.cos(month)
+            week_sin = np.sin(week)
+            week_cos = np.cos(week)
+            return np.hstack((month_sin, month_cos, week_sin, week_cos))
     else:
         print("freq is not supported")
         return None

@@ -120,10 +120,11 @@ def plot_decompose(x,trend,season,resid,t1,t2,model):
     #如果x是三维的，去掉最后一个维度
     if len(x.shape)==3:
         x=x[:,:,0]
-    plt.plot(trend[t1:t2,-1],label='trend',color='red')
-    plt.plot(season[t1:t2,-1],label='season',color='blue')
-    plt.plot(resid[t1:t2,-1],label='resid',color='lightgreen')
-    plt.plot(x[t1:t2,-1],label='original',color='grey')
+    plot_column=-1
+    plt.plot(trend[t1:t2,plot_column],label='trend',color='red')
+    plt.plot(season[t1:t2,plot_column],label='season',color='blue')
+    plt.plot(resid[t1:t2,plot_column],label='resid',color='lightgreen')
+    plt.plot(x[t1:t2,plot_column],label='original',color='grey')
     plt.title(model)
     plt.legend()
     plt.show()

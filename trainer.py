@@ -24,6 +24,7 @@ class MLTrainer:
         self.decompose_all = args.decompose_all
         self.target = args.target
         self.use_date = args.use_date
+        self.use_weather = args.use_weather
 
         if isinstance(self.model, torch.nn.Module):
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -88,12 +89,16 @@ class MLTrainer:
             with torch.no_grad():  # 在评估阶段，不计算梯度
                 for data, target,target_true, _, _,data_trend, data_seasonal,data_res  in test_loader:
                     data, target_true = data.to(self.device), target_true.to(self.device)
+                    if self.use_weather:
+                        target_true=target_true[:, :, :self.channels]
                     test_Y.append(target_true.cpu())
 
                     data_trend, data_seasonal, data_res = data_trend.to(self.device), data_seasonal.to(self.device), data_res.to(self.device)
                     output = self._get_batch_output_from_flag(self.model, data, data_trend, data_seasonal, data_res, flag)
-                    if self.use_date:
+                    if self.use_date=='one_hot':
                         output = output[:, :self.seq_len, :]
+                    elif self.use_date=='sin_cos' or self.use_weather:
+                        output = output[:, :, :self.channels]
                     fore.append(output.cpu())
 
             # 聚合所有批次的预测结果和真实标签

@@ -9,7 +9,7 @@ from utils.transforms import IdentityTransform, Normalization, Standardization,M
 from torch.utils.data import DataLoader
 from trainer import MLTrainer
 from dataset.dataset import get_dataset
-from dataset.ETT_data import Dataset_ETT_hour
+from dataset.ETT_data import Dataset_ETT_hour,merge_weather
 from dataset.data_visualizer import data_visualize,plot_forecast,plot_day_forecast,plot_random_forecast
 import matplotlib.pyplot as plt
 import os
@@ -60,7 +60,10 @@ def get_args():
     parser.add_argument('--batch_size', type=int, default=64, help='Batch size for training')
     parser.add_argument('--individual', action='store_true', help='individual training for each channel')
     parser.add_argument('--D_N', action='store_true', help='Use DLinear and NLinear together')
-    parser.add_argument('--use_date', action='store_true', help='Use date feature')
+    parser.add_argument('--use_date', type=str, default=None,help='日期的编码方式，options: [None, one_hot, sin_cos]')
+    parser.add_argument('--use_feature', type=str, default='week', help='使用的特征，options: [week, month_week]')
+    parser.add_argument('--all_channel_loss', action='store_true', help='use all channel to compute loss')
+    parser.add_argument('--use_weather', action='store_true', help='use weather feature')
 
     # decompose method
     parser.add_argument('--decompose_all', type=bool, default=True, help='decompose all series，使用完整序列的分解')
@@ -120,7 +123,8 @@ def get_args():
     parser.add_argument('--rank', type=int, default=7, help='Target dimensionality for SPIRIT algorithm')
     parser.add_argument('--spirit_alpha', type=float, default=0.98, help='Forgetting factor for SPIRIT')
 
-    parser.add_argument('--hw4_run_SOTA', action='store_true')
+    parser.add_argument('--hw5_run_SOTA', action='store_true')
+    parser.add_argument('--hw5_run_weather', action='store_true')
     args = parser.parse_args()
     return args
 
@@ -156,9 +160,11 @@ def set_args_for_dataset(args):
         args.pred_len = 96
         args.period = 96
         args.frequency = 'm'
+    if args.use_weather:#args.data_path == "./dataset/ETT/ETTh1.csv" and
+        args.data_path = "./dataset/ETT/ETTh1_weather.csv"
     return args
 
-def run_hw4(args,fix_seed):
+def run_hw5(args,fix_seed):
 
     random.seed(fix_seed)
     np.random.seed(fix_seed)
@@ -222,7 +228,7 @@ if __name__ == '__main__':
     args = get_args()
     # args.decompose_based = True
     # args.model = 'ResidualModel'
-    # args.model = 'DLinear'
+    args.model = 'DLinear'
     # args.model = 'NLinear'
     # args.model = 'Autoregression'
     # args.model = 'ThetaMethod'
@@ -234,7 +240,7 @@ if __name__ == '__main__':
     # args.trend_model = 'NLinear'
     # args.seasonal_model = 'NLinear'
 
-    # args.individual = True
+    args.individual = True
     args.target = 'Multi'
     # args.target = 'OT'
     # args.batch_size = 1
@@ -242,50 +248,54 @@ if __name__ == '__main__':
 
     # run_hw4(args, fix_seed)
 
-    if args.hw4_run_SOTA:
-        for args.data_path in [
-            './dataset/ETT/ETTh1.csv',
-            './dataset/ETT/ETTh2.csv',
-            './dataset/ETT/ETTm1.csv',
-            './dataset/ETT/ETTm2.csv'
-            ]:
-            args=set_args_for_dataset(args)
-            print()
-            print('data_path =',args.data_path,'period =',args.period)
 
-            args.decompose_based = False
-            # for args.model in ['NLinear','Autoregression']:#'DLinear',
-            for args.model,args.individual in [
-                # ('Autoregression',True),
-                # ('NLinear',False),
-                # ('NLinear',True),
-                # ('DLinear',False),
-                ('DLinear',True),]:#
-                end='\n'
-                end=', '
-                print("Model:",args.model,end=end)#
-                print("individual =",args.individual)#,"decompose_based=",args.decompose_based
-                for args.decompose in ['STL']:#,'X11','MA',
-                    for args.residual in [True]:#,False
-                        print("Decompose : ",args.decompose,end=end)
-                        print('resid =', args.residual,end=end)
-                        for args.pred_len in [96, 192, 336, 720]:#96
-                            run_hw4(args,fix_seed)
-    else:
+
+    if args.hw5_run_SOTA:
         # args.data_path='./dataset/ETT/ETTm1.csv'
-        args.data_path = './dataset/ETT/ETTh1.csv'
+        # args.data_path = './dataset/ETT/ETTh1.csv'
+        # merge_weather()
+        # args.use_weather = True
+        for args.use_weather in [False]:#,True,
+            # print('use_weather =',args.use_weather,end=': ')
+            for args.data_path in [
+                './dataset/ETT/ETTh1.csv',
+                './dataset/ETT/ETTh2.csv',
+                './dataset/ETT/ETTm1.csv',
+                './dataset/ETT/ETTm2.csv'
+            ]:
+                args = set_args_for_dataset(args)
+                print()
+                print('data_path =', args.data_path)
+                args.D_N=True
+                args.use_feature = 'month_week'
+                args.model = 'DLinear'
+                # args.model = 'NLinear'
+                # args.individual=False
+                args.individual=True
+                for args.use_date,args.use_feature in [
+                    (None, None),
+                    ('sin_cos','month_week'),
+                    # ('one_hot','month_week'),
+                    ('sin_cos','week'),
+                    # ('one_hot','week'),
+                    ]:
+                    print('use_feature =',args.use_feature,"use_date =",args.use_date,end=': ')#
+                    # for args.all_channel_loss in [True,False]:#
+                    #     print('all_channel_loss =',args.all_channel_loss,end=': ')
+                    for args.pred_len in [96, 192, 336, 720]:  # 96
+                        run_hw5(args, fix_seed)
+                    # run_hw4(args, fix_seed)
+    elif args.hw5_run_weather:
+        args.use_weather= True
+        merge_weather()
         args = set_args_for_dataset(args)
-        print()
-        print('data_path =', args.data_path)
-        args.D_N=True
-        args.model = 'DLinear'
-        # args.model = 'NLinear'
-        # args.use_date = True
-        for args.individual in [False,True]:#
-            for args.use_date in [False,True]:
-                print("individual =",args.individual,"use_date =",args.use_date)
-                run_hw4(args, fix_seed)
-        # args.individual=True
-
-        # args.use_date=True
-        # run_hw4(args, fix_seed)
+        args.D_N = True
+        for args.use_date, args.use_feature in [
+            (None, None),
+            ('sin_cos', 'month_week'),
+            # ('one_hot','month_week'),
+            ('sin_cos', 'week'),
+        ]:
+            print('use_feature =', args.use_feature, "use_date =", args.use_date, end=': ')  #
+            for args.pred_len in [96, 192, 336, 720]:  # 96
+                run_hw5(args, fix_seed)
