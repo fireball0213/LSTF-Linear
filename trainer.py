@@ -2,18 +2,22 @@ import numpy as np
 from numpy.lib.stride_tricks import sliding_window_view
 from utils.metrics import mse, mae, mape, smape, mase
 from utils.transforms import get_denoise,get_transform
+from models.Transformer import Transformer
+from models.PatchTST import PatchTST
+from models.DLinear import Linear_NN, NLinear, DLinear
 from dataset.data_visualizer import data_vi,plot_fft2
 import matplotlib.pyplot as plt
 import torch
 from torch.utils.data import DataLoader
 from dataset.data_tools import StandardScaler
 import os
-
+from dataset.ETT_data import Dataset_ETT_hour
 class MLTrainer:
     def __init__(self, args,model, dataset):
         self.model = model
         self.transform = get_transform(args)
         self.dataset = dataset
+        # self.val_dataset = Dataset_ETT_hour(args, flag='val')
         self.period = args.period
         self.distance_dim = args.distance_dim
         self.freq_denoise = get_denoise(args)
@@ -62,13 +66,19 @@ class MLTrainer:
             return data.seasonal
 
     def train(self,flag=None):
-        if isinstance(self.model, torch.nn.Module):#已归一化、计算独热编码
+        if isinstance(self.model, (DLinear, NLinear)):
+        # if isinstance(self.model, torch.nn.Module):#已归一化、计算独热编码
             self.model.train()
             train_loader = DataLoader(self.dataset, batch_size=self.args.batch_size, shuffle=True)
             for data, target,_, date_x, date_y,data_trend, data_seasonal,data_res in train_loader:
                 data, target = data.to(self.device), target.to(self.device)
                 data_trend, data_seasonal,data_res = data_trend.to(self.device), data_seasonal.to(self.device),data_res.to(self.device)
                 self.model.fit(data, target, data_trend, data_seasonal,data_res)
+        #判断模型是否为Transformer，不能直接通过self.model等于字符串判断
+        elif isinstance(self.model, (Transformer, PatchTST)):
+            train_X=self.dataset.data_train
+            val_X=self.dataset.data_val
+            self.model.fit(train_X, val_X)
         else:
             train_X_trend= self._get_data_from_flag(self.dataset, 'trend')
             train_X_seasonal= self._get_data_from_flag(self.dataset, 'seasonal')
@@ -81,7 +91,8 @@ class MLTrainer:
             self.model.fit(train_X,train_X_trend,train_X_seasonal)
 
     def evaluate(self, test_data,flag=None):
-        if isinstance(self.model, torch.nn.Module):
+        if isinstance(self.model, (DLinear, NLinear)):
+        # if isinstance(self.model, torch.nn.Module):
             self.model.eval()
             fore = []
             test_Y = []
@@ -111,6 +122,12 @@ class MLTrainer:
             if self.args.use_spirit:
                 fore = self.dataset.spirit.inverse_transform(fore)
                 # test_Y = self.dataset.spirit.inverse_transform(test_Y)
+
+
+        elif isinstance(self.model, (Transformer, PatchTST)):
+            test_X, test_Y = self._get_slide_data(test_data.data_x)
+            fore = self.model.forecast(test_X)
+
         else:
             test_data_original= self._get_data_from_flag(test_data)
             test_data_trend= self._get_data_from_flag(test_data, 'trend')
