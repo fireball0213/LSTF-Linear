@@ -151,8 +151,7 @@ def get_args():
     parser.add_argument('--lradj', type=str, default='type1', help='adjust learning rate'
                         , choices=['type1', 'type2', 'constant'])
 
-
-
+    parser.add_argument('--load_trained_model', action='store_true')
     args = parser.parse_args()
     return args
 
@@ -258,31 +257,50 @@ if __name__ == '__main__':
     args = get_args()
 
     # args.model = 'ResidualModel'
-    args.model = 'DLinear'
+    # args.model = 'DLinear'
     # args.model = 'NLinear'
     # args.model = 'Autoregression'
     # args.model = 'ThetaMethod'
     # args.model = 'ARIMA'
     # args.model = 'TsfKNN'
-    # args.model = 'Transformer'
+    args.model = 'Transformer'
     # args.model = 'PatchTST'
 
-    # args.decompose_based = True
-    # args.trend_model = 'Autoregression'
-    # args.seasonal_model = 'Autoregression'
-    args.trend_model = 'NLinear'
-    args.seasonal_model = 'NLinear'
+    args.decompose_based = True
+    args.trend_model = 'Autoregression'
+    args.seasonal_model = 'Autoregression'
+    # args.trend_model = 'NLinear'
+    # args.seasonal_model = 'NLinear'
+    # args.trend_model ='Transformer'
+    # args.seasonal_model ='Transformer'
+    # args.trend_model = 'PatchTST'
+    # args.seasonal_model = 'PatchTST'
 
     args.individual = True
     args.target = 'Multi'
-    # args.target = 'OT'
-    # args.batch_size = 1
     args.D_N=True
     args.lradj= 'type2'
+    args.load_trained_model = True
     # for args.lradj in ['type1','type2','constant']:
     #     print()
     #     run_hw5(args, fix_seed)
-    run_hw5(args, fix_seed)
+    for args.trend_model,args.seasonal_model in [
+        ('Autoregression','Autoregression'),
+        ('Autoregression', 'NLinear'),
+        ('Autoregression', 'PatchTST'),
+        ('NLinear','Autoregression'),
+        ('NLinear', 'NLinear'),
+        ('NLinear','PatchTST'),
+        ('PatchTST', 'Autoregression'),
+        ('PatchTST','NLinear'),
+        ('PatchTST', 'PatchTST'),
+    ]:
+        print()
+        print('trend_model =', args.trend_model, 'seasonal_model =', args.seasonal_model)#, end=': '
+        for args.pred_len in [96, 192, 336, 720]:  # 96
+            run_hw5(args, fix_seed)
+    # run_hw5(args, fix_seed)
+
 
 
 

@@ -58,12 +58,28 @@ class MLTrainer:
             return model(data_seasonal)
 
     def _get_data_from_flag(self,data, flag=None):
-        if flag == None:
-            return data.data_x
-        elif flag == 'trend':
-            return data.trend
-        elif flag == 'seasonal':
-            return data.seasonal
+        #用于支持趋势和季节性分开预测
+        if isinstance(self.model, (Transformer, PatchTST)):
+            if self.args.decompose_based and flag == 'trend':
+                train_X = data.train_trend
+                val_X =data.val_trend
+                test_X= data.test_trend
+            elif self.args.decompose_based and flag == 'seasonal':
+                train_X = data.train_seasonal
+                val_X = data.val_seasonal
+                test_X = data.test_seasonal
+            else:
+                train_X = data.data_train
+                val_X = data.data_val
+                test_X = data.data_test
+            return train_X, val_X, test_X
+        else:
+            if flag == None:
+                return data.data_x
+            elif flag == 'trend':
+                return data.trend
+            elif flag == 'seasonal':
+                return data.seasonal
 
     def train(self,flag=None):
         if isinstance(self.model, (DLinear, NLinear)):
@@ -82,9 +98,8 @@ class MLTrainer:
                 self.model.fit(train_X, target, data_trend, data_seasonal)
         #判断模型是否为Transformer，不能直接通过self.model等于字符串判断
         elif isinstance(self.model, (Transformer, PatchTST)):
-            train_X=self.dataset.data_train
-            val_X=self.dataset.data_val
-            self.model.fit(train_X, val_X)
+            train_X, val_X,_ = self._get_data_from_flag(self.dataset, flag)
+            self.model.fit(train_X, val_X, flag)
         else:
             train_X_trend= self._get_data_from_flag(self.dataset, 'trend')
             train_X_seasonal= self._get_data_from_flag(self.dataset, 'seasonal')
@@ -131,7 +146,9 @@ class MLTrainer:
 
 
         elif isinstance(self.model, (Transformer, PatchTST)):
-            test_X, test_Y = self._get_slide_data(test_data.data_x)
+            _,_, test_X = self._get_data_from_flag(test_data, flag)
+            test_X, _ = self._get_slide_data(test_X)
+            _, test_Y = self._get_slide_data(test_data.data_x)#test_Y不分解
             fore = self.model.forecast(test_X)
 
         else:

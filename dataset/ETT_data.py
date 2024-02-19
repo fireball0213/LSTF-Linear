@@ -123,7 +123,11 @@ class Dataset_ETT_hour(Dataset):
 
         if self.decompose is not None:
             self.trend, self.seasonal, self.resid = self.decompose(self.data_x, self.period,self.residual)
-            self.y_trend, self.y_seasonal, self.y_resid = self.decompose(self.data_y, self.period,self.residual)
+            if self.args.decompose_based:
+                self.y_trend, self.y_seasonal, self.y_resid = self.trend, self.seasonal, self.resid#self.decompose(self.data_y, self.period,self.residual)
+                self.train_trend, self.train_seasonal, self.train_resid = self.decompose(self.data_train, self.period,self.residual)
+                self.val_trend, self.val_seasonal, self.val_resid = self.decompose(self.data_val, self.period,self.residual)
+                self.test_trend, self.test_seasonal, self.test_resid = self.decompose(self.data_test, self.period,self.residual)
             # plot_decompose(self.data_x, self.trend, self.seasonal, self.resid, 0, 200, 'whole decompose_' + str(self.flag))
 
 

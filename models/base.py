@@ -6,15 +6,15 @@ class MLForecastModel:
     def __init__(self) -> None:
         self.fitted = False
 
-    def fit(self, train_X: np.ndarray, val_X=None) -> None:
+    def fit(self, train_X: np.ndarray, val_X=None, flag=None) -> None:
         """
         :param X: history timesteps
         :param Y: future timesteps to predict
         """
-        self._fit(train_X, val_X)
+        self._fit(train_X, val_X, flag)
         self.fitted = True
 
-    def _fit(self, X: np.ndarray, val_X=None):
+    def _fit(self, X: np.ndarray, val_X=None, flag=None):
         raise NotImplementedError
 
     def _forecast(self, X: np.ndarray) -> np.ndarray:
