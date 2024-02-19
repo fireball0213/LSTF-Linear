@@ -123,6 +123,7 @@ class Dataset_ETT_hour(Dataset):
 
         if self.decompose is not None:
             self.trend, self.seasonal, self.resid = self.decompose(self.data_x, self.period,self.residual)
+            self.y_trend, self.y_seasonal, self.y_resid = self.decompose(self.data_y, self.period,self.residual)
             # plot_decompose(self.data_x, self.trend, self.seasonal, self.resid, 0, 200, 'whole decompose_' + str(self.flag))
 
 
@@ -138,6 +139,10 @@ class Dataset_ETT_hour(Dataset):
         seq_x_trend = self.trend[s_begin:s_end]#.reshape(-1, self.channel)
         seq_x_seasonal = self.seasonal[s_begin:s_end]#.reshape(-1, self.channel)
         seq_x_resid = self.resid[s_begin:s_end]#.reshape(-1, self.channel)
+        seq_y_trend = self.y_trend[r_begin:r_end]#.reshape(-1, self.channel)
+        seq_y_seasonal = self.y_seasonal[r_begin:r_end]#.reshape(-1, self.channel)
+        seq_y_resid = self.y_resid[r_begin:r_end]#.reshape(-1, self.channel)
+
 
         if self.use_date=='one_hot':
             seq_x_mark = self.date_embedding[s_begin]
@@ -163,7 +168,7 @@ class Dataset_ETT_hour(Dataset):
         else:
             seq_x_mark, seq_y_mark=0,0
 
-        return seq_x, seq_y, seq_z,seq_x_mark, seq_y_mark, seq_x_trend, seq_x_seasonal, seq_x_resid
+        return seq_x, seq_y, seq_z,seq_x_mark, seq_y_mark, seq_x_trend, seq_x_seasonal, seq_y_trend, seq_y_seasonal
 
     def __len__(self):
         return len(self.data_x) - self.seq_len - self.pred_len + 1

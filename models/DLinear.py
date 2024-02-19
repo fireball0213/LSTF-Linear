@@ -34,17 +34,17 @@ class BaseLinearModel(nn.Module):
         # 定义线性层，具体实现由子类完成
         pass
 
-    def forward(self, x, x_trend=None, x_seasonal=None,x_res=None):
+    def forward(self, x, x_trend=None, x_seasonal=None):
         # 前向传播，具体实现由子类完成
         pass
 
-    def fit(self, x, y,x_trend=None, x_seasonal=None,x_res=None):
+    def fit(self, x, y,x_trend=None, x_seasonal=None):
         x ,y= x.float(), y.float()
         if self.decompose_all:#使用全部数据的分解结果
-            x_trend, x_seasonal,x_res= x_trend.float(), x_seasonal.float(),x_res.float()
+            x_trend, x_seasonal= x_trend.float(), x_seasonal.float()
         self.train()
         self.optimizer.zero_grad()
-        outputs = self.forward(x,x_trend, x_seasonal,x_res)
+        outputs = self.forward(x,x_trend, x_seasonal)
         loss = self.calculate_loss(outputs, y)
         # print('loss:',loss)
         loss.backward()
@@ -106,7 +106,7 @@ class NLinear(BaseLinearModel):
             self.Linear = nn.Linear(self.final_seq_len * self.final_channels, self.final_pred_len * self.final_channels)
 
 
-    def forward(self, x, x_trend=None, x_seasonal=None,x_res=None):
+    def forward(self, x, x_trend=None, x_seasonal=None):
         x = x.float()
         # 提取最后一个时间步的数据并进行差分操作
         last_index = self.seq_len - 1
@@ -148,12 +148,12 @@ class DLinear(BaseLinearModel):
             self.Linear_Trend = nn.Linear(self.final_seq_len * self.final_channels, self.final_pred_len * self.final_channels)
             self.Linear_Seasonal = nn.Linear(self.final_seq_len * self.final_channels , self.final_pred_len * self.final_channels)
 
-    def forward(self, x, x_trend=None, x_seasonal=None,x_res=None):
+    def forward(self, x, x_trend=None, x_seasonal=None):
         if torch.isnan(x_trend).any():
             print("NaN detected in input")
 
         if self.decompose_all:#使用全部数据的分解结果
-            trend, seasonal ,resid= x_trend.float(), x_seasonal.float(),x_res.float()
+            trend, seasonal = x_trend.float(), x_seasonal.float()
         else:#使用局部数据的分解结果
             trend, seasonal, resid = self.decompose(x, self.period,self.residual)
             #如果trend是tensor

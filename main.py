@@ -256,21 +256,22 @@ if __name__ == '__main__':
     fix_seed = 2023
 
     args = get_args()
-    # args.decompose_based = True
+
     # args.model = 'ResidualModel'
-    # args.model = 'DLinear'
+    args.model = 'DLinear'
     # args.model = 'NLinear'
     # args.model = 'Autoregression'
     # args.model = 'ThetaMethod'
     # args.model = 'ARIMA'
     # args.model = 'TsfKNN'
     # args.model = 'Transformer'
-    args.model = 'PatchTST'
+    # args.model = 'PatchTST'
 
-    args.trend_model = 'Autoregression'
-    args.seasonal_model = 'Autoregression'
-    # args.trend_model = 'NLinear'
-    # args.seasonal_model = 'NLinear'
+    # args.decompose_based = True
+    # args.trend_model = 'Autoregression'
+    # args.seasonal_model = 'Autoregression'
+    args.trend_model = 'NLinear'
+    args.seasonal_model = 'NLinear'
 
     args.individual = True
     args.target = 'Multi'

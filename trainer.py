@@ -48,9 +48,9 @@ class MLTrainer:
             test_Y = subseries[:, self.seq_len:, :]
         return test_X, test_Y
 
-    def _get_batch_output_from_flag(self,model, data, data_trend, data_seasonal, data_res, flag):
+    def _get_batch_output_from_flag(self,model, data, data_trend, data_seasonal, flag):
         if flag == None:
-            return model(data, data_trend, data_seasonal, data_res)
+            return model(data, data_trend, data_seasonal)
         # #分开预测，则不考虑已分开的DLinear
         elif flag == 'trend':
             return model(data_trend)
@@ -70,10 +70,16 @@ class MLTrainer:
         # if isinstance(self.model, torch.nn.Module):#已归一化、计算独热编码
             self.model.train()
             train_loader = DataLoader(self.dataset, batch_size=self.args.batch_size, shuffle=True)
-            for data, target,_, date_x, date_y,data_trend, data_seasonal,data_res in train_loader:
-                data, target = data.to(self.device), target.to(self.device)
-                data_trend, data_seasonal,data_res = data_trend.to(self.device), data_seasonal.to(self.device),data_res.to(self.device)
-                self.model.fit(data, target, data_trend, data_seasonal,data_res)
+            for train_X, target,_, date_x, date_y,data_trend, data_seasonal,target_trend,target_seasonal in train_loader:
+                train_X, target = train_X.to(self.device), target.to(self.device)
+                data_trend, data_seasonal, target_trend, target_seasonal = data_trend.to(self.device), data_seasonal.to(self.device), target_trend.to(self.device), target_seasonal.to(self.device)
+                if flag=='trend':
+                    train_X = data_trend
+                    target = target_trend
+                elif flag=='seasonal':
+                    train_X = data_seasonal
+                    target = target_seasonal
+                self.model.fit(train_X, target, data_trend, data_seasonal)
         #判断模型是否为Transformer，不能直接通过self.model等于字符串判断
         elif isinstance(self.model, (Transformer, PatchTST)):
             train_X=self.dataset.data_train
@@ -98,14 +104,14 @@ class MLTrainer:
             test_Y = []
             test_loader = DataLoader(test_data, batch_size=self.args.batch_size, shuffle=False)
             with torch.no_grad():  # 在评估阶段，不计算梯度
-                for data, target,target_true, _, _,data_trend, data_seasonal,data_res  in test_loader:
+                for data,  target,target_true, date_x, date_y,data_trend, data_seasonal,_,_l in test_loader:
                     data, target_true = data.to(self.device), target_true.to(self.device)
                     if self.use_weather:
                         target_true=target_true[:, :, :self.channels]
                     test_Y.append(target_true.cpu())
 
-                    data_trend, data_seasonal, data_res = data_trend.to(self.device), data_seasonal.to(self.device), data_res.to(self.device)
-                    output = self._get_batch_output_from_flag(self.model, data, data_trend, data_seasonal, data_res, flag)
+                    data_trend, data_seasonal = data_trend.to(self.device), data_seasonal.to(self.device),
+                    output = self._get_batch_output_from_flag(self.model, data, data_trend, data_seasonal, flag)
                     if self.use_date=='one_hot':
                         output = output[:, :self.seq_len, :]
                     elif self.use_date=='sin_cos' or self.use_weather:
